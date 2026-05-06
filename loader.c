@@ -30,22 +30,38 @@ static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
 static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pDir, LPCWSTR lpKey)
 {
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pDir + 1);
-    int count = pDir->NumberOfNamedEntries + pDir->NumberOfIdEntries;
+    int low = 0, high;
 
-    for (int i = 0; i < count; i++) {
-        if (IS_INTRESOURCE(lpKey)) {
-            if (!pEntries[i].NameIsString && pEntries[i].Id == PtrToUshort(lpKey))
-                return &pEntries[i];
-        } else {
-            if (pEntries[i].NameIsString) {
-                PBYTE pBase = (PBYTE)GetResourceRoot((HMODULE)LDR_TO_BASE(pDir));
-                PIMAGE_RESOURCE_DIR_STRING_U pStr = (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[i].NameOffset);
-                if (wcsnicmp(lpKey, pStr->NameString, pStr->Length) == 0 &&
-                    lpKey[pStr->Length] == UNICODE_NULL)
-                {
-                    return &pEntries[i];
-                }
+    if (IS_INTRESOURCE(lpKey)) {
+        // IDエントリの二分探索
+        WORD id = PtrToUshort(lpKey);
+        low = pDir->NumberOfNamedEntries;
+        high = low + pDir->NumberOfIdEntries - 1;
+        while (low <= high) {
+            int mid = (low + high) / 2;
+            if (pEntries[mid].Id == id) return &pEntries[mid];
+            if (pEntries[mid].Id < id) low = mid + 1;
+            else high = mid - 1;
+        }
+    } else {
+        // 名前エントリの二分探索
+        PBYTE pBase = (PBYTE)GetResourceRoot((HMODULE)LDR_TO_BASE(pDir));
+        size_t keyLen = wcslen(lpKey);
+        low = 0;
+        high = pDir->NumberOfNamedEntries - 1;
+        while (low <= high) {
+            int mid = (low + high) / 2;
+            PIMAGE_RESOURCE_DIR_STRING_U pStr = (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[mid].NameOffset);
+
+            // 長さの差を優先して比較し、同じ長さなら中身を比較
+            int res = _wcsnicmp(lpKey, pStr->NameString, min(keyLen, (size_t)pStr->Length));
+            if (res == 0) {
+                if (keyLen == pStr->Length) return &pEntries[mid];
+                res = (keyLen < pStr->Length) ? -1 : 1;
             }
+
+            if (res > 0) low = mid + 1;
+            else high = mid - 1;
         }
     }
     return NULL;
@@ -135,10 +151,22 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
 HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 {
     if (!hrsrc) return NULL;
+
+    PBYTE pBase = LDR_TO_BASE(hModule);
     PIMAGE_RESOURCE_DATA_ENTRY pData = (PIMAGE_RESOURCE_DATA_ENTRY)
         ((PBYTE)GetResourceRoot(hModule) + ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
 
-    return (HGLOBAL)(LDR_TO_BASE(hModule) + pData->OffsetToData);
+    if (LDR_IS_RESOURCE_HANDLE(hModule))
+    {
+        // LOAD_LIBRARY_AS_DATAFILE の場合、RVAをファイルオフセットベースのVAに変換
+        PIMAGE_NT_HEADERS pNt = ImageNtHeader(pBase);
+        if (!pNt) return NULL;
+
+        return (HGLOBAL)ImageRvaToVa(pNt, pBase, pData->OffsetToData, NULL);
+    }
+
+    // 通常のロード（イメージとしてマップされている）場合は RVA を足すだけ
+    return (HGLOBAL)(pBase + pData->OffsetToData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -154,6 +182,7 @@ LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData)
 
 BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, LONG_PTR lParam)
 {
+    if (!hModule) return FALSE;
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
     if (!root) return FALSE;
 
@@ -186,6 +215,7 @@ BOOL WONAPI WonEnumResourceNamesW(
     ENUMRESNAMEPROCW lpEnumFunc,
     LONG_PTR lParam)
 {
+    if (!hModule) return FALSE;
     PIMAGE_RESOURCE_DIRECTORY pRootDir = GetResourceRoot(hModule);
     if (!pRootDir) return FALSE;
 
@@ -217,6 +247,7 @@ BOOL WONAPI WonEnumResourceLanguagesW(
     ENUMRESLANGPROCW lpEnumFunc,
     LONG_PTR lParam)
 {
+    if (!hModule) return FALSE;
     PIMAGE_RESOURCE_DIRECTORY pRootDir = GetResourceRoot(hModule);
     if (!pRootDir) return FALSE;
 
