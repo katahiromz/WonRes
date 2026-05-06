@@ -9,6 +9,16 @@ BOOL CALLBACK LangEnumProcA(
     WORD wLang,
     LONG_PTR lParam)
 {
+    if (IS_INTRESOURCE(lpType))
+        wprintf(L"Type: %d\n", LOWORD(lpType));
+    else
+        wprintf(L"Type: %hs\n", lpType);
+
+    if (IS_INTRESOURCE(lpName))
+        wprintf(L"Name: %d\n", LOWORD(lpName));
+    else
+        wprintf(L"Name: %hs\n", lpName);
+
     wprintf(L"Language: %u\n", wLang);
     return TRUE;
 }
@@ -20,6 +30,16 @@ BOOL CALLBACK LangEnumProcW(
     WORD wLang,
     LONG_PTR lParam)
 {
+    if (IS_INTRESOURCE(lpType))
+        wprintf(L"Type: %d\n", LOWORD(lpType));
+    else
+        wprintf(L"Type: %ls\n", lpType);
+
+    if (IS_INTRESOURCE(lpName))
+        wprintf(L"Name: %d\n", LOWORD(lpName));
+    else
+        wprintf(L"Name: %ls\n", lpName);
+
     wprintf(L"Language: %u\n", wLang);
     return TRUE;
 }

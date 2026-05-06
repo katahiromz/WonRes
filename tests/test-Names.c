@@ -8,6 +8,11 @@ BOOL CALLBACK NameEnumProcA(
     LPSTR lpName,
     LONG_PTR lParam)
 {
+    if (IS_INTRESOURCE(lpType))
+        wprintf(L"Type: %u\n", (UINT)(ULONG_PTR)lpType);
+    else
+        wprintf(L"Type: %hs\n", lpType);
+
     if (IS_INTRESOURCE(lpName))
         wprintf(L"Name ID: %u\n", (UINT)(ULONG_PTR)lpName);
     else
@@ -22,6 +27,11 @@ BOOL CALLBACK NameEnumProcW(
     LPWSTR lpName,
     LONG_PTR lParam)
 {
+    if (IS_INTRESOURCE(lpType))
+        wprintf(L"Type: %u\n", (UINT)(ULONG_PTR)lpType);
+    else
+        wprintf(L"Type: %ls\n", lpType);
+
     if (IS_INTRESOURCE(lpName))
         wprintf(L"Name ID: %u\n", (UINT)(ULONG_PTR)lpName);
     else
