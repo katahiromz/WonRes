@@ -6,6 +6,7 @@
 #include "WonRes.h"
 
 // Script: C99/Win32でBeginUpdateResourceWなどのリソース アップデータを再実装してください。
+// 実行モジュール・更新モジュールについてx86/x64両方に対応して下さい。
 
 HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingResources)
 {

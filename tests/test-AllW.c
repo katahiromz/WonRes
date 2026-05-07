@@ -51,7 +51,7 @@ BOOL CALLBACK TypeEnumProcW(
 
 int main(int argc, char **argv)
 {
-    HMODULE hModule = LoadLibraryA(argv[1]);
+    HMODULE hModule = LoadLibraryExA(argv[1], NULL, LOAD_LIBRARY_AS_DATAFILE);
     BOOL ret = WonEnumResourceTypesW(hModule, TypeEnumProcW, 0);
     FreeLibrary(hModule);
     return ret ? 0 : 1;
