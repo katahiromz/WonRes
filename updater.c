@@ -5,7 +5,7 @@
 #include <imagehlp.h>
 #include "WonRes.h"
 
-// Script: C99/Win32でBeginUpdateResourceWなどのリソース アップデータを再実装してください。
+// Script: C99/Win32でBeginUpdateResourceWなどのリソース更新関数を再実装してください。
 // 実行モジュール・更新モジュールについてx86/x64両方に対応して下さい。
 // x86からx64の書き込み、x64からx86の書き込みにも対応してください。
 
