@@ -1,9 +1,9 @@
 ﻿// loader.c --- Win32 resource loader for WonRes
 // Author: katahiromz
 // License: MIT
-#include "WonRes.h"
-#include <imagehlp.h>
 #include <windows.h>
+#include <imagehlp.h>
+#include "WonRes.h"
 
 // Script:
 // C99/Win32でFindResourceExWなどのリソースローダーを再実装してください。LoadLibraryExのLOAD_LIBRARY_AS_DATAFILEにも対応してください。

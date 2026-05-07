@@ -1,9 +1,9 @@
 ﻿// updater.c --- Win32 resource updater for WonRes
 // Author: katahiromz
 // License: MIT
-#include "WonRes.h"
-#include <imagehlp.h>
 #include <windows.h>
+#include <imagehlp.h>
+#include "WonRes.h"
 
 // Script: C99/Win32でBeginUpdateResourceWなどのリソース アップデータを再実装してください。
 
