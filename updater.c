@@ -60,6 +60,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     // TODO: エントリ群をソート
     // TODO: 増加分のバイト数と更新後のファイルサイズの計算
     // TODO: ファイル作成
+    // TODO: ファイルサイズを増やす
     // TODO: IMAGE_DIRECTORY_ENTRY_RESOURCE書き込み
     // TODO: エントリ書き込み
 
