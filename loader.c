@@ -81,23 +81,33 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage)
 {
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
-    if (!root)
+    if (!root) {
+        SetLastError(ERROR_RESOURCE_DATA_NOT_FOUND);
         return NULL;
+    }
 
     // Level 1: Type
     PIMAGE_RESOURCE_DIRECTORY_ENTRY e = FindEntry(root, root, lpType);
-    if (!e || !e->DataIsDirectory)
+    if (!e || !e->DataIsDirectory) {
+        SetLastError(ERROR_RESOURCE_TYPE_NOT_FOUND);
         return NULL;
+    }
 
     // Level 2: Name
     PIMAGE_RESOURCE_DIRECTORY dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     e = FindEntry(root, dir, lpName);
-    if (!e || !e->DataIsDirectory)
+    if (!e || !e->DataIsDirectory) {
+        SetLastError(ERROR_RESOURCE_NAME_NOT_FOUND);
         return NULL;
+    }
 
     // Level 3: Language
     dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     e = FindEntry(root, dir, (LPCWSTR)(ULONG_PTR)wLanguage);
+    if (!e) {
+        SetLastError(ERROR_RESOURCE_LANG_NOT_FOUND);
+        return NULL;
+    }
 
     return (HRSRC)(ULONG_PTR)e;
 }

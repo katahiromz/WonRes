@@ -10,7 +10,7 @@
 // 実行モジュール・更新モジュールについてx86/x64両方に対応して下さい。
 // x86からx64の書き込み、x64からx86の書き込みにも対応してください。
 
-// リソースエントリの内部構造体（便宜上ここに追加）
+// リソースエントリの内部構造体
 typedef struct WON_RES_ENTRY {
     LPWSTR type;
     LPWSTR name;
@@ -51,23 +51,24 @@ static inline BOOL MatchResId(LPCWSTR id1, LPCWSTR id2)
     return FALSE;
 }
 
+// 実際にリソースを更新する関数
 static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 {
     LPWSTR pFileName = pUpdate->pFileName;
     PWON_RES_ENTRY pEntries = pUpdate->pEntries;
 
-    // TODO:
+    // TODO: エントリ群をソート
+    // TODO: 増加分のバイト数と更新後のファイルサイズの計算
+    // TODO: ファイル作成
+    // TODO: IMAGE_DIRECTORY_ENTRY_RESOURCE書き込み
+    // TODO: エントリ書き込み
+
     return FALSE;
 }
 
 // 既存リソース読み込み用のコールバック
-static BOOL CALLBACK
-LoadExistingResProc(
-    HMODULE hMod,
-    LPCWSTR lpType,
-    LPCWSTR lpName,
-    WORD wLang,
-    LONG_PTR lParam)
+static BOOL CALLBACK LoadExistingResProc(HMODULE hMod, LPCWSTR lpType, LPCWSTR lpName, WORD wLang,
+                                         LONG_PTR lParam)
 {
     HANDLE hUpdate = (HANDLE)lParam;
     HRSRC hRes = WonFindResourceExW(hMod, lpType, lpName, wLang);
@@ -82,7 +83,8 @@ LoadExistingResProc(
     return TRUE;
 }
 
-static BOOL CALLBACK LoadExistingNamesProc(HMODULE hMod, LPCWSTR lpType, LPWSTR lpName, LONG_PTR lParam)
+static BOOL CALLBACK LoadExistingNamesProc(HMODULE hMod, LPCWSTR lpType, LPWSTR lpName,
+                                           LONG_PTR lParam)
 {
     return WonEnumResourceLanguagesW(hMod, lpType, lpName, LoadExistingResProc, lParam);
 }
@@ -94,8 +96,10 @@ static BOOL CALLBACK LoadExistingTypesProc(HMODULE hMod, LPWSTR lpType, LONG_PTR
 
 HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingResources)
 {
-    PWON_UPDATE_DATA pUpdate = (PWON_UPDATE_DATA)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WON_UPDATE_DATA));
-    if (!pUpdate) return NULL;
+    PWON_UPDATE_DATA pUpdate =
+        (PWON_UPDATE_DATA)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WON_UPDATE_DATA));
+    if (!pUpdate)
+        return NULL;
 
     pUpdate->pFileName = _wcsdup(pFileName);
     pUpdate->bDeleteExisting = bDeleteExistingResources;
@@ -115,7 +119,8 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
                                LPVOID lpData, DWORD cbData)
 {
     PWON_UPDATE_DATA pUpdate = (PWON_UPDATE_DATA)hUpdate;
-    if (!pUpdate) return FALSE;
+    if (!pUpdate)
+        return FALSE;
 
     // 同一リソース（Type, Name, Lang）があるか確認
     PWON_RES_ENTRY *ppNext = &pUpdate->pEntries;
@@ -129,17 +134,20 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
             *ppNext = pCurr->next;
             FreeResId(pDelete->type);
             FreeResId(pDelete->name);
-            if (pDelete->data) HeapFree(GetProcessHeap(), 0, pDelete->data);
+            if (pDelete->data)
+                HeapFree(GetProcessHeap(), 0, pDelete->data);
             HeapFree(GetProcessHeap(), 0, pDelete);
-            break; 
+            break;
         }
         ppNext = &pCurr->next;
     }
 
     // lpData が NULL でない場合は新規追加・更新
     if (lpData != NULL) {
-        PWON_RES_ENTRY pNew = (PWON_RES_ENTRY)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WON_RES_ENTRY));
-        if (!pNew) return FALSE;
+        PWON_RES_ENTRY pNew =
+            (PWON_RES_ENTRY)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WON_RES_ENTRY));
+        if (!pNew)
+            return FALSE;
 
         pNew->type = DuplicateResId(lpType);
         pNew->name = DuplicateResId(lpName);
@@ -159,12 +167,12 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
 BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard)
 {
     PWON_UPDATE_DATA pUpdate = (PWON_UPDATE_DATA)hUpdate;
-    if (!pUpdate) return FALSE;
+    if (!pUpdate)
+        return FALSE;
 
     BOOL ret = TRUE;
-    if (!fDiscard) {
+    if (!fDiscard)
         ret = WonRealUpdateResource(pUpdate);
-    }
 
     // クリーンアップ
     PWON_RES_ENTRY pCurr = pUpdate->pEntries;
@@ -172,7 +180,8 @@ BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard)
         PWON_RES_ENTRY pNext = pCurr->next;
         FreeResId(pCurr->type);
         FreeResId(pCurr->name);
-        if (pCurr->data) HeapFree(GetProcessHeap(), 0, pCurr->data);
+        if (pCurr->data)
+            HeapFree(GetProcessHeap(), 0, pCurr->data);
         HeapFree(GetProcessHeap(), 0, pCurr);
         pCurr = pNext;
     }
