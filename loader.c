@@ -13,7 +13,7 @@
 #define LDR_IS_RESOURCE_HANDLE(h) (((ULONG_PTR)(h) & 3) != 0)
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
 
-#define LDR_DIR_OFFSET(e)  ((e).OffsetToDirectory & 0x7FFFFFFF)
+#define LDR_DIR_OFFSET(e) ((e).OffsetToDirectory & 0x7FFFFFFF)
 #define LDR_DATA_OFFSET(e) ((e).OffsetToData & 0x7FFFFFFF)
 #define LDR_NAME_OFFSET(e) ((e).NameOffset & 0x7FFFFFFF)
 
@@ -23,10 +23,7 @@ static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
     ULONG size;
     BOOL MappedAsImage = !LDR_IS_RESOURCE_HANDLE(hModule);
     return (PIMAGE_RESOURCE_DIRECTORY)ImageDirectoryEntryToData(
-        LDR_TO_BASE(hModule),
-        MappedAsImage,
-        IMAGE_DIRECTORY_ENTRY_RESOURCE,
-        &size);
+        LDR_TO_BASE(hModule), MappedAsImage, IMAGE_DIRECTORY_ENTRY_RESOURCE, &size);
 }
 
 // IDまたは名前でエントリを検索
@@ -93,8 +90,7 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
         return NULL;
 
     // Level 2: Name
-    PIMAGE_RESOURCE_DIRECTORY dir =
-        (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
+    PIMAGE_RESOURCE_DIRECTORY dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     e = FindEntry(root, dir, lpName);
     if (!e || !e->DataIsDirectory)
         return NULL;
@@ -186,10 +182,7 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 ////////////////////////////////////////////////////////////////////////////////////
 // Lock resource
 
-LPVOID WONAPI WonLockResource(HGLOBAL hResData)
-{
-    return (LPVOID)hResData;
-}
+LPVOID WONAPI WonLockResource(HGLOBAL hResData) { return (LPVOID)hResData; }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Enum resource
@@ -286,7 +279,7 @@ BOOL WONAPI WonEnumResourceLanguagesW(HMODULE hModule, LPCWSTR lpType, LPCWSTR l
         return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pNameDir =
-         (PIMAGE_RESOURCE_DIRECTORY)(pBase + LDR_DIR_OFFSET(*pTypeEntry));
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + LDR_DIR_OFFSET(*pTypeEntry));
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = FindEntry(pRootDir, pNameDir, lpName);
     if (!pNameEntry || !pNameEntry->DataIsDirectory)
         return FALSE;
