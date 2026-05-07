@@ -1,4 +1,4 @@
-// updater.c --- Win32 resource updater for WonRes
+﻿// updater.c --- Win32 resource updater for WonRes
 // Author: katahiromz
 // License: MIT
 #include "WonRes.h"
