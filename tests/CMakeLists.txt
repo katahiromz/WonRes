@@ -18,3 +18,11 @@ target_link_libraries(test-AllA PRIVATE WonRes)
 # test-AllW.exe
 add_executable(test-AllW test-AllW.c)
 target_link_libraries(test-AllW PRIVATE WonRes)
+
+# test-UpdateA.exe
+add_executable(test-UpdateA test-UpdateA.c)
+target_link_libraries(test-UpdateA PRIVATE WonRes)
+
+# test-UpdateW.exe
+add_executable(test-UpdateW test-UpdateW.c)
+target_link_libraries(test-UpdateW PRIVATE WonRes)

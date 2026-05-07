@@ -104,6 +104,7 @@ HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, W
     else
     {
         if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return NULL;
+        szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
 
@@ -114,6 +115,7 @@ HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, W
     else
     {
         if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW))) return NULL;
+        szNameW[_countof(szNameW) - 1] = UNICODE_NULL;
         pszNameW = szNameW;
     }
 
@@ -310,6 +312,7 @@ WonEnumTypeA2WProc(HMODULE hModule, LPWSTR lpszType, LONG_PTR lParam)
     else
     {
         if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+        szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
 
@@ -331,6 +334,7 @@ WonEnumNameA2WProc(HMODULE hModule, LPCWSTR lpszType, LPWSTR lpszName, LONG_PTR 
     else
     {
         if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+        szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
 
@@ -341,6 +345,7 @@ WonEnumNameA2WProc(HMODULE hModule, LPCWSTR lpszType, LPWSTR lpszName, LONG_PTR 
     else
     {
         if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL)) return FALSE;
+        szNameA[_countof(szNameA) - 1] = ANSI_NULL;
         pszNameA = szNameA;
     }
 
@@ -366,6 +371,7 @@ WonEnumLangA2WProc(
     else
     {
         if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+        szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
 
@@ -376,6 +382,7 @@ WonEnumLangA2WProc(
     else
     {
         if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL)) return FALSE;
+        szNameA[_countof(szNameA) - 1] = ANSI_NULL;
         pszNameA = szNameA;
     }
 
@@ -411,6 +418,7 @@ BOOL WONAPI WonEnumResourceNamesA(
     else
     {
         if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return FALSE;
+        szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
 
@@ -438,6 +446,7 @@ BOOL WONAPI WonEnumResourceLanguagesA(
     else
     {
         if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return FALSE;
+        szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
 
@@ -448,6 +457,7 @@ BOOL WONAPI WonEnumResourceLanguagesA(
     else
     {
         if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW))) return FALSE;
+        szNameW[_countof(szNameW) - 1] = UNICODE_NULL;
         pszNameW = szNameW;
     }
 

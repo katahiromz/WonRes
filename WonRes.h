@@ -44,18 +44,44 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc);
 HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc);
 LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData);
 
+HANDLE WONAPI WonBeginUpdateResourceA(LPCSTR pFileName, BOOL bDeleteExistingResources);
+HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingResources);
+BOOL WONAPI WonEndUpdateResourceA(HANDLE hUpdate, BOOL fDiscard);
+BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard);
+
+BOOL WONAPI WonUpdateResourceA(
+    HANDLE hUpdate,
+    LPCSTR lpType,
+    LPCSTR lpName,
+    WORD wLanguage,
+    LPVOID lpData,
+    DWORD cbData);
+BOOL WONAPI WonUpdateResourceW(
+    HANDLE hUpdate,
+    LPCWSTR lpType,
+    LPCWSTR lpName,
+    WORD wLanguage,
+    LPVOID lpData,
+    DWORD cbData);
+
 #ifdef UNICODE
     #define WonEnumResourceTypes WonEnumResourceTypesW
     #define WonEnumResourceNames WonEnumResourceNamesW
     #define WonEnumResourceLanguages WonEnumResourceLanguagesW
     #define WonFindResource WonFindResourceW
     #define WonFindResourceEx WonFindResourceExW
+    #define WonBeginUpdateResource WonBeginUpdateResourceW
+    #define WonUpdateResource WonUpdateResourceW
+    #define WonEndUpdateResource WonEndUpdateResourceW
 #else
     #define WonEnumResourceTypes WonEnumResourceTypesA
     #define WonEnumResourceNames WonEnumResourceNamesA
     #define WonEnumResourceLanguages WonEnumResourceLanguagesA
     #define WonFindResource WonFindResourceA
     #define WonFindResourceEx WonFindResourceExA
+    #define WonBeginUpdateResource WonBeginUpdateResourceA
+    #define WonUpdateResource WonUpdateResourceA
+    #define WonEndUpdateResource WonEndUpdateResourceA
 #endif
 
 #ifdef __cplusplus
