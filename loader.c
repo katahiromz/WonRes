@@ -27,7 +27,8 @@ static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
 }
 
 // IDまたは名前でエントリを検索
-static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pDir, LPCWSTR lpKey)
+static PIMAGE_RESOURCE_DIRECTORY_ENTRY
+FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot, PIMAGE_RESOURCE_DIRECTORY pDir, LPCWSTR lpKey)
 {
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pDir + 1);
     int low = 0, high;
@@ -45,7 +46,7 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pDir,
         }
     } else {
         // 名前エントリの二分探索
-        PBYTE pBase = (PBYTE)GetResourceRoot((HMODULE)LDR_TO_BASE(pDir));
+        PBYTE pBase = (PBYTE)pRoot;
         size_t keyLen = wcslen(lpKey);
         low = 0;
         high = pDir->NumberOfNamedEntries - 1;
@@ -67,31 +68,26 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pDir,
     return NULL;
 }
 
-static LPCWSTR GetResourceIdOrName(PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntry, PBYTE pResourceBase)
-{
-    if (pEntry->NameIsString)
-        return (LPCWSTR)(pResourceBase + pEntry->NameOffset);
-
-    return MAKEINTRESOURCEW(pEntry->Id);
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Find resource
 
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage)
 {
-    PIMAGE_RESOURCE_DIRECTORY base = GetResourceRoot(hModule);
-    if (!base) return NULL;
+    PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
+    if (!root) return NULL;
 
-    PIMAGE_RESOURCE_DIRECTORY_ENTRY e = FindEntry(base, lpType);
+    // Level 1: Type
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY e = FindEntry(root, root, lpType);
     if (!e || !e->DataIsDirectory) return NULL;
 
-    base = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)base + e->OffsetToDirectory);
-    e = FindEntry(base, lpName);
+    // Level 2: Name
+    PIMAGE_RESOURCE_DIRECTORY dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
+    e = FindEntry(root, dir, lpName);
     if (!e || !e->DataIsDirectory) return NULL;
 
-    base = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)base + e->OffsetToDirectory);
-    e = FindEntry(base, (LPCWSTR)(ULONG_PTR)wLanguage);
+    // Level 3: Language
+    dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
+    e = FindEntry(root, dir, (LPCWSTR)(ULONG_PTR)wLanguage);
 
     return (HRSRC)e;
 }
@@ -221,7 +217,7 @@ BOOL WONAPI WonEnumResourceNamesW(
 
     PBYTE pBase = (PBYTE)pRootDir;
 
-    PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, lpType);
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, pRootDir, lpType);
     if (!pTypeEntry || !pTypeEntry->DataIsDirectory) return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pNameDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
@@ -231,9 +227,21 @@ BOOL WONAPI WonEnumResourceNamesW(
 
     for (DWORD i = 0; i < totalCount; i++)
     {
-        LPCWSTR resName = GetResourceIdOrName(&pNameEntries[i], pBase);
+        WCHAR szName[MAX_RES_ID_LEN];
+        LPWSTR resName;
 
-        if (!lpEnumFunc(hModule, lpType, (LPWSTR)resName, lParam))
+        if (pNameEntries[i].NameIsString) {
+            PIMAGE_RESOURCE_DIR_STRING_U pStr =
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pNameEntries[i].NameOffset);
+            int len = (int)min((size_t)pStr->Length, _countof(szName) - 1);
+            memcpy(szName, pStr->NameString, len * sizeof(WCHAR));
+            szName[len] = UNICODE_NULL;
+            resName = szName;
+        } else {
+            resName = MAKEINTRESOURCEW(pNameEntries[i].Id);
+        }
+
+        if (!lpEnumFunc(hModule, lpType, resName, lParam))
             return FALSE;
     }
 
@@ -253,11 +261,11 @@ BOOL WONAPI WonEnumResourceLanguagesW(
 
     PBYTE pBase = (PBYTE)pRootDir;
 
-    PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, lpType);
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, pRootDir, lpType);
     if (!pTypeEntry || !pTypeEntry->DataIsDirectory) return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pNameDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
-    PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = FindEntry(pNameDir, lpName);
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = FindEntry(pRootDir, pNameDir, lpName);
     if (!pNameEntry || !pNameEntry->DataIsDirectory) return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pLangDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pNameEntry->OffsetToDirectory);
