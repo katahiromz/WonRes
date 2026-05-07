@@ -1,17 +1,15 @@
 ﻿// loader.c --- Win32 resource loader for WonRes
 // Author: katahiromz
 // License: MIT
-#include <windows.h>
-#include <imagehlp.h>
 #include "WonRes.h"
+#include <imagehlp.h>
+#include <windows.h>
 
-// Script: C99/Win32でFindResourceExWなどのリソースローダーを再実装してください。LoadLibraryExのLOAD_LIBRARY_AS_DATAFILEにも対応してください。
+// Script:
+// C99/Win32でFindResourceExWなどのリソースローダーを再実装してください。LoadLibraryExのLOAD_LIBRARY_AS_DATAFILEにも対応してください。
 
 #define LDR_IS_RESOURCE_HANDLE(h) (((ULONG_PTR)(h) & 3) != 0)
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
-
-// リソースIDの最大長
-#define MAX_RES_ID_LEN 256
 
 // リソースディレクトリのルートを取得
 static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
@@ -20,15 +18,13 @@ static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
     // ImageDirectoryEntryToData は RVA を解決して実際のアドレスを返す
     // LOAD_LIBRARY_AS_DATAFILE の場合も適切にオフセットを計算する
     return (PIMAGE_RESOURCE_DIRECTORY)ImageDirectoryEntryToData(
-        LDR_TO_BASE(hModule),
-        LDR_IS_RESOURCE_HANDLE(hModule) ? FALSE : TRUE,
-        IMAGE_DIRECTORY_ENTRY_RESOURCE,
-        &size);
+        LDR_TO_BASE(hModule), LDR_IS_RESOURCE_HANDLE(hModule) ? FALSE : TRUE,
+        IMAGE_DIRECTORY_ENTRY_RESOURCE, &size);
 }
 
 // IDまたは名前でエントリを検索
-static PIMAGE_RESOURCE_DIRECTORY_ENTRY
-FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot, PIMAGE_RESOURCE_DIRECTORY pDir, LPCWSTR lpKey)
+static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot,
+                                                 PIMAGE_RESOURCE_DIRECTORY pDir, LPCWSTR lpKey)
 {
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pDir + 1);
     int low = 0, high;
@@ -40,9 +36,12 @@ FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot, PIMAGE_RESOURCE_DIRECTORY pDir, LPCWS
         high = low + pDir->NumberOfIdEntries - 1;
         while (low <= high) {
             int mid = (low + high) / 2;
-            if (pEntries[mid].Id == id) return &pEntries[mid];
-            if (pEntries[mid].Id < id) low = mid + 1;
-            else high = mid - 1;
+            if (pEntries[mid].Id == id)
+                return &pEntries[mid];
+            if (pEntries[mid].Id < id)
+                low = mid + 1;
+            else
+                high = mid - 1;
         }
     } else {
         // 名前エントリの二分探索
@@ -52,17 +51,21 @@ FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot, PIMAGE_RESOURCE_DIRECTORY pDir, LPCWS
         high = pDir->NumberOfNamedEntries - 1;
         while (low <= high) {
             int mid = (low + high) / 2;
-            PIMAGE_RESOURCE_DIR_STRING_U pStr = (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[mid].NameOffset);
+            PIMAGE_RESOURCE_DIR_STRING_U pStr =
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[mid].NameOffset);
 
             // 長さの差を優先して比較し、同じ長さなら中身を比較
             int res = _wcsnicmp(lpKey, pStr->NameString, min(keyLen, (size_t)pStr->Length));
             if (res == 0) {
-                if (keyLen == pStr->Length) return &pEntries[mid];
+                if (keyLen == pStr->Length)
+                    return &pEntries[mid];
                 res = (keyLen < pStr->Length) ? -1 : 1;
             }
 
-            if (res > 0) low = mid + 1;
-            else high = mid - 1;
+            if (res > 0)
+                low = mid + 1;
+            else
+                high = mid - 1;
         }
     }
     return NULL;
@@ -74,16 +77,19 @@ FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot, PIMAGE_RESOURCE_DIRECTORY pDir, LPCWS
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage)
 {
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
-    if (!root) return NULL;
+    if (!root)
+        return NULL;
 
     // Level 1: Type
     PIMAGE_RESOURCE_DIRECTORY_ENTRY e = FindEntry(root, root, lpType);
-    if (!e || !e->DataIsDirectory) return NULL;
+    if (!e || !e->DataIsDirectory)
+        return NULL;
 
     // Level 2: Name
     PIMAGE_RESOURCE_DIRECTORY dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
     e = FindEntry(root, dir, lpName);
-    if (!e || !e->DataIsDirectory) return NULL;
+    if (!e || !e->DataIsDirectory)
+        return NULL;
 
     // Level 3: Language
     dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
@@ -97,24 +103,20 @@ HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, W
     LPCWSTR pszTypeW, pszNameW;
     WCHAR szTypeW[MAX_RES_ID_LEN], szNameW[MAX_RES_ID_LEN];
 
-    if (IS_INTRESOURCE(lpType))
-    {
+    if (IS_INTRESOURCE(lpType)) {
         pszTypeW = (LPCWSTR)lpType;
-    }
-    else
-    {
-        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return NULL;
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW)))
+            return NULL;
         szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
 
-    if (IS_INTRESOURCE(lpName))
-    {
+    if (IS_INTRESOURCE(lpName)) {
         pszNameW = (LPCWSTR)lpName;
-    }
-    else
-    {
-        if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW))) return NULL;
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW)))
+            return NULL;
         szNameW[_countof(szNameW) - 1] = UNICODE_NULL;
         pszNameW = szNameW;
     }
@@ -137,9 +139,11 @@ HRSRC WONAPI WonFindResourceW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName)
 
 DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
 {
-    if (!hrsrc) return 0;
-    PIMAGE_RESOURCE_DATA_ENTRY pData = (PIMAGE_RESOURCE_DATA_ENTRY)
-        ((PBYTE)GetResourceRoot(hModule) + ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
+    if (!hrsrc)
+        return 0;
+    PIMAGE_RESOURCE_DATA_ENTRY pData =
+        (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
+                                     ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
     return pData->Size;
 }
 
@@ -148,17 +152,20 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
 
 HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 {
-    if (!hrsrc) return NULL;
+    if (!hrsrc)
+        return NULL;
 
     PBYTE pBase = LDR_TO_BASE(hModule);
-    PIMAGE_RESOURCE_DATA_ENTRY pData = (PIMAGE_RESOURCE_DATA_ENTRY)
-        ((PBYTE)GetResourceRoot(hModule) + ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
+    PIMAGE_RESOURCE_DATA_ENTRY pData =
+        (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
+                                     ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
 
-    if (LDR_IS_RESOURCE_HANDLE(hModule))
-    {
-        // LOAD_LIBRARY_AS_DATAFILE の場合、RVAをファイルオフセットベースのVAに変換
+    if (LDR_IS_RESOURCE_HANDLE(hModule)) {
+        // LOAD_LIBRARY_AS_DATAFILE
+        // の場合、RVAをファイルオフセットベースのVAに変換
         PIMAGE_NT_HEADERS pNt = ImageNtHeader(pBase);
-        if (!pNt) return NULL;
+        if (!pNt)
+            return NULL;
 
         return (HGLOBAL)ImageRvaToVa(pNt, pBase, pData->OffsetToData, NULL);
     }
@@ -170,26 +177,26 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 ////////////////////////////////////////////////////////////////////////////////////
 // Lock resource
 
-LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData)
-{
-    return (LPVOID)hResData;
-}
+LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData) { return (LPVOID)hResData; }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Enum resource
 
 BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, LONG_PTR lParam)
 {
-    if (!hModule) return FALSE;
+    if (!hModule)
+        return FALSE;
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
-    if (!root) return FALSE;
+    if (!root)
+        return FALSE;
 
     PBYTE pBase = (PBYTE)root;
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(root + 1);
     for (WORD i = 0; i < (root->NumberOfNamedEntries + root->NumberOfIdEntries); i++) {
         LPWSTR type;
         if (pEntries[i].NameIsString) {
-            PIMAGE_RESOURCE_DIR_STRING_U pStr = (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[i].NameOffset);
+            PIMAGE_RESOURCE_DIR_STRING_U pStr =
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[i].NameOffset);
 
             // 本来はNULL終端されていない可能性があるため、バッファにコピーして終端させる必要があります
             WCHAR szName[MAX_RES_ID_LEN];
@@ -202,33 +209,34 @@ BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, 
             type = MAKEINTRESOURCEW(pEntries[i].Id);
         }
 
-        if (!lpEnumFunc(hModule, type, lParam)) break;
+        if (!lpEnumFunc(hModule, type, lParam))
+            break;
     }
     return TRUE;
 }
 
-BOOL WONAPI WonEnumResourceNamesW(
-    HMODULE hModule,
-    LPCWSTR lpType,
-    ENUMRESNAMEPROCW lpEnumFunc,
-    LONG_PTR lParam)
+BOOL WONAPI WonEnumResourceNamesW(HMODULE hModule, LPCWSTR lpType, ENUMRESNAMEPROCW lpEnumFunc,
+                                  LONG_PTR lParam)
 {
-    if (!hModule) return FALSE;
+    if (!hModule)
+        return FALSE;
     PIMAGE_RESOURCE_DIRECTORY pRootDir = GetResourceRoot(hModule);
-    if (!pRootDir) return FALSE;
+    if (!pRootDir)
+        return FALSE;
 
     PBYTE pBase = (PBYTE)pRootDir;
 
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, pRootDir, lpType);
-    if (!pTypeEntry || !pTypeEntry->DataIsDirectory) return FALSE;
+    if (!pTypeEntry || !pTypeEntry->DataIsDirectory)
+        return FALSE;
 
-    PIMAGE_RESOURCE_DIRECTORY pNameDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
+    PIMAGE_RESOURCE_DIRECTORY pNameDir =
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNameDir + 1);
 
     DWORD totalCount = pNameDir->NumberOfNamedEntries + pNameDir->NumberOfIdEntries;
 
-    for (DWORD i = 0; i < totalCount; i++)
-    {
+    for (DWORD i = 0; i < totalCount; i++) {
         WCHAR szName[MAX_RES_ID_LEN];
         LPWSTR resName;
 
@@ -250,32 +258,33 @@ BOOL WONAPI WonEnumResourceNamesW(
     return TRUE;
 }
 
-BOOL WONAPI WonEnumResourceLanguagesW(
-    HMODULE hModule,
-    LPCWSTR lpType,
-    LPCWSTR lpName,
-    ENUMRESLANGPROCW lpEnumFunc,
-    LONG_PTR lParam)
+BOOL WONAPI WonEnumResourceLanguagesW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
+                                      ENUMRESLANGPROCW lpEnumFunc, LONG_PTR lParam)
 {
-    if (!hModule) return FALSE;
+    if (!hModule)
+        return FALSE;
     PIMAGE_RESOURCE_DIRECTORY pRootDir = GetResourceRoot(hModule);
-    if (!pRootDir) return FALSE;
+    if (!pRootDir)
+        return FALSE;
 
     PBYTE pBase = (PBYTE)pRootDir;
 
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = FindEntry(pRootDir, pRootDir, lpType);
-    if (!pTypeEntry || !pTypeEntry->DataIsDirectory) return FALSE;
+    if (!pTypeEntry || !pTypeEntry->DataIsDirectory)
+        return FALSE;
 
-    PIMAGE_RESOURCE_DIRECTORY pNameDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
+    PIMAGE_RESOURCE_DIRECTORY pNameDir =
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = FindEntry(pRootDir, pNameDir, lpName);
-    if (!pNameEntry || !pNameEntry->DataIsDirectory) return FALSE;
+    if (!pNameEntry || !pNameEntry->DataIsDirectory)
+        return FALSE;
 
-    PIMAGE_RESOURCE_DIRECTORY pLangDir = (PIMAGE_RESOURCE_DIRECTORY)(pBase + pNameEntry->OffsetToDirectory);
+    PIMAGE_RESOURCE_DIRECTORY pLangDir =
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pNameEntry->OffsetToDirectory);
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pLangDir + 1);
 
     DWORD totalCount = pLangDir->NumberOfNamedEntries + pLangDir->NumberOfIdEntries;
-    for (DWORD i = 0; i < totalCount; i++)
-    {
+    for (DWORD i = 0; i < totalCount; i++) {
         WORD wLang = pLangEntries[i].Id;
 
         if (!lpEnumFunc(hModule, lpType, lpName, wLang, lParam))
@@ -288,8 +297,7 @@ BOOL WONAPI WonEnumResourceLanguagesW(
 ////////////////////////////////////////////////////////////////////////////////////
 // WonEnum* ANSI version
 
-typedef struct tagENUM_W2A_DATA
-{
+typedef struct tagENUM_W2A_DATA {
     LPARAM lParam;
     union {
         ENUMRESTYPEPROCA fnTypeProcA;
@@ -298,20 +306,17 @@ typedef struct tagENUM_W2A_DATA
     };
 } ENUM_W2A_DATA, *PENUM_W2A_DATA;
 
-static BOOL CALLBACK
-WonEnumTypeA2WProc(HMODULE hModule, LPWSTR lpszType, LONG_PTR lParam)
+static BOOL CALLBACK WonEnumTypeA2WProc(HMODULE hModule, LPWSTR lpszType, LONG_PTR lParam)
 {
     PENUM_W2A_DATA pData = (PENUM_W2A_DATA)lParam;
     CHAR szTypeA[MAX_RES_ID_LEN];
     LPSTR pszTypeA;
 
-    if (IS_INTRESOURCE(lpszType))
-    {
+    if (IS_INTRESOURCE(lpszType)) {
         pszTypeA = MAKEINTRESOURCEA(PtrToUshort(lpszType));
-    }
-    else
-    {
-        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+    } else {
+        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL))
+            return FALSE;
         szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
@@ -319,32 +324,28 @@ WonEnumTypeA2WProc(HMODULE hModule, LPWSTR lpszType, LONG_PTR lParam)
     return pData->fnTypeProcA(hModule, pszTypeA, pData->lParam);
 }
 
-static BOOL CALLBACK
-WonEnumNameA2WProc(HMODULE hModule, LPCWSTR lpszType, LPWSTR lpszName, LONG_PTR lParam)
+static BOOL CALLBACK WonEnumNameA2WProc(HMODULE hModule, LPCWSTR lpszType, LPWSTR lpszName,
+                                        LONG_PTR lParam)
 {
     PENUM_W2A_DATA pData = (PENUM_W2A_DATA)lParam;
     CHAR szTypeA[MAX_RES_ID_LEN], szNameA[MAX_RES_ID_LEN];
     LPCSTR pszTypeA;
     LPSTR pszNameA;
 
-    if (IS_INTRESOURCE(lpszType))
-    {
+    if (IS_INTRESOURCE(lpszType)) {
         pszTypeA = MAKEINTRESOURCEA(PtrToUshort(lpszType));
-    }
-    else
-    {
-        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+    } else {
+        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL))
+            return FALSE;
         szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
 
-    if (IS_INTRESOURCE(lpszName))
-    {
+    if (IS_INTRESOURCE(lpszName)) {
         pszNameA = MAKEINTRESOURCEA(PtrToUshort(lpszName));
-    }
-    else
-    {
-        if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL)) return FALSE;
+    } else {
+        if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL))
+            return FALSE;
         szNameA[_countof(szNameA) - 1] = ANSI_NULL;
         pszNameA = szNameA;
     }
@@ -352,36 +353,27 @@ WonEnumNameA2WProc(HMODULE hModule, LPCWSTR lpszType, LPWSTR lpszName, LONG_PTR 
     return pData->fnNameProcA(hModule, pszTypeA, pszNameA, pData->lParam);
 }
 
-static BOOL CALLBACK
-WonEnumLangA2WProc(
-    HMODULE hModule,
-    LPCWSTR lpszType,
-    LPCWSTR lpszName,
-    WORD wIDLanguage,
-    LONG_PTR lParam)
+static BOOL CALLBACK WonEnumLangA2WProc(HMODULE hModule, LPCWSTR lpszType, LPCWSTR lpszName,
+                                        WORD wIDLanguage, LONG_PTR lParam)
 {
     PENUM_W2A_DATA pData = (PENUM_W2A_DATA)lParam;
     CHAR szTypeA[MAX_RES_ID_LEN], szNameA[MAX_RES_ID_LEN];
     LPCSTR pszTypeA, pszNameA;
 
-    if (IS_INTRESOURCE(lpszType))
-    {
+    if (IS_INTRESOURCE(lpszType)) {
         pszTypeA = MAKEINTRESOURCEA(PtrToUshort(lpszType));
-    }
-    else
-    {
-        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL)) return FALSE;
+    } else {
+        if (!WideCharToMultiByte(CP_ACP, 0, lpszType, -1, szTypeA, _countof(szTypeA), NULL, NULL))
+            return FALSE;
         szTypeA[_countof(szTypeA) - 1] = ANSI_NULL;
         pszTypeA = szTypeA;
     }
 
-    if (IS_INTRESOURCE(lpszName))
-    {
+    if (IS_INTRESOURCE(lpszName)) {
         pszNameA = MAKEINTRESOURCEA(PtrToUshort(lpszName));
-    }
-    else
-    {
-        if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL)) return FALSE;
+    } else {
+        if (!WideCharToMultiByte(CP_ACP, 0, lpszName, -1, szNameA, _countof(szNameA), NULL, NULL))
+            return FALSE;
         szNameA[_countof(szNameA) - 1] = ANSI_NULL;
         pszNameA = szNameA;
     }
@@ -398,11 +390,8 @@ BOOL WONAPI WonEnumResourceTypesA(HMODULE hModule, ENUMRESTYPEPROCA lpEnumFunc, 
     return WonEnumResourceTypesW(hModule, WonEnumTypeA2WProc, (LPARAM)&data);
 }
 
-BOOL WONAPI WonEnumResourceNamesA(
-    HMODULE hModule,
-    LPCSTR lpType,
-    ENUMRESNAMEPROCA lpEnumFunc,
-    LONG_PTR lParam)
+BOOL WONAPI WonEnumResourceNamesA(HMODULE hModule, LPCSTR lpType, ENUMRESNAMEPROCA lpEnumFunc,
+                                  LONG_PTR lParam)
 {
     ENUM_W2A_DATA data;
     data.lParam = lParam;
@@ -411,13 +400,11 @@ BOOL WONAPI WonEnumResourceNamesA(
     WCHAR szTypeW[MAX_RES_ID_LEN];
     LPCWSTR pszTypeW;
 
-    if (IS_INTRESOURCE(lpType))
-    {
+    if (IS_INTRESOURCE(lpType)) {
         pszTypeW = MAKEINTRESOURCEW(PtrToUshort(lpType));
-    }
-    else
-    {
-        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return FALSE;
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW)))
+            return FALSE;
         szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
@@ -425,12 +412,8 @@ BOOL WONAPI WonEnumResourceNamesA(
     return WonEnumResourceNamesW(hModule, pszTypeW, WonEnumNameA2WProc, (LPARAM)&data);
 }
 
-BOOL WONAPI WonEnumResourceLanguagesA(
-    HMODULE hModule,
-    LPCSTR lpType,
-    LPCSTR lpName,
-    ENUMRESLANGPROCA lpEnumFunc,
-    LONG_PTR lParam)
+BOOL WONAPI WonEnumResourceLanguagesA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName,
+                                      ENUMRESLANGPROCA lpEnumFunc, LONG_PTR lParam)
 {
     ENUM_W2A_DATA data;
     data.lParam = lParam;
@@ -439,27 +422,24 @@ BOOL WONAPI WonEnumResourceLanguagesA(
     WCHAR szTypeW[MAX_RES_ID_LEN], szNameW[MAX_RES_ID_LEN];
     LPCWSTR pszTypeW, pszNameW;
 
-    if (IS_INTRESOURCE(lpType))
-    {
+    if (IS_INTRESOURCE(lpType)) {
         pszTypeW = MAKEINTRESOURCEW(PtrToUshort(lpType));
-    }
-    else
-    {
-        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW))) return FALSE;
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW)))
+            return FALSE;
         szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
         pszTypeW = szTypeW;
     }
 
-    if (IS_INTRESOURCE(lpName))
-    {
+    if (IS_INTRESOURCE(lpName)) {
         pszNameW = MAKEINTRESOURCEW(PtrToUshort(lpName));
-    }
-    else
-    {
-        if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW))) return FALSE;
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW)))
+            return FALSE;
         szNameW[_countof(szNameW) - 1] = UNICODE_NULL;
         pszNameW = szNameW;
     }
 
-    return WonEnumResourceLanguagesW(hModule, pszTypeW, pszNameW, WonEnumLangA2WProc, (LPARAM)&data);
+    return WonEnumResourceLanguagesW(hModule, pszTypeW, pszNameW, WonEnumLangA2WProc,
+                                     (LPARAM)&data);
 }

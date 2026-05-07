@@ -1,14 +1,11 @@
 // updater.c --- Win32 resource updater for WonRes
 // Author: katahiromz
 // License: MIT
-#include <windows.h>
-#include <imagehlp.h>
 #include "WonRes.h"
+#include <imagehlp.h>
+#include <windows.h>
 
 // Script: C99/Win32でBeginUpdateResourceWなどのリソース アップデータを再実装してください。
-
-// リソースIDの最大長
-#define MAX_RES_ID_LEN 256
 
 HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingResources)
 {
@@ -16,13 +13,8 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
     return NULL;
 }
 
-BOOL WONAPI WonUpdateResourceW(
-    HANDLE hUpdate,
-    LPCWSTR lpType,
-    LPCWSTR lpName,
-    WORD wLanguage,
-    LPVOID lpData,
-    DWORD cbData)
+BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage,
+                               LPVOID lpData, DWORD cbData)
 {
     // TODO:
     return FALSE;
@@ -42,23 +34,15 @@ HANDLE WONAPI WonBeginUpdateResourceA(LPCSTR pFileName, BOOL bDeleteExistingReso
     return WonBeginUpdateResourceW(szFileName, bDeleteExistingResources);
 }
 
-BOOL WONAPI WonUpdateResourceA(
-    HANDLE hUpdate,
-    LPCSTR lpType,
-    LPCSTR lpName,
-    WORD wLanguage,
-    LPVOID lpData,
-    DWORD cbData)
+BOOL WONAPI WonUpdateResourceA(HANDLE hUpdate, LPCSTR lpType, LPCSTR lpName, WORD wLanguage,
+                               LPVOID lpData, DWORD cbData)
 {
     WCHAR szTypeW[MAX_RES_ID_LEN], szNameW[MAX_RES_ID_LEN];
     LPWSTR pszTypeW, pszNameW;
 
-    if (IS_INTRESOURCE(lpType))
-    {
+    if (IS_INTRESOURCE(lpType)) {
         pszTypeW = MAKEINTRESOURCEW(PtrToUshort(lpType));
-    }
-    else
-    {
+    } else {
         if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW)))
             return FALSE;
 
@@ -66,12 +50,9 @@ BOOL WONAPI WonUpdateResourceA(
         pszTypeW = szTypeW;
     }
 
-    if (IS_INTRESOURCE(lpName))
-    {
+    if (IS_INTRESOURCE(lpName)) {
         pszNameW = MAKEINTRESOURCEW(PtrToUshort(lpName));
-    }
-    else
-    {
+    } else {
         if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW)))
             return FALSE;
 

@@ -12,6 +12,10 @@ extern "C" {
     #define WONAPI WINAPI
 #endif
 
+#ifndef MAX_RES_ID_LEN
+    #define MAX_RES_ID_LEN 256
+#endif
+
 BOOL WONAPI WonEnumResourceTypesA(HMODULE hModule, ENUMRESTYPEPROCA lpEnumFunc, LONG_PTR lParam);
 BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, LONG_PTR lParam);
 
