@@ -11,15 +11,20 @@
 #define LDR_IS_RESOURCE_HANDLE(h) (((ULONG_PTR)(h) & 3) != 0)
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
 
+#define LDR_DIR_OFFSET(e)  ((e).OffsetToDirectory & 0x7FFFFFFF)
+#define LDR_DATA_OFFSET(e) ((e).OffsetToData & 0x7FFFFFFF)
+#define LDR_NAME_OFFSET(e) ((e).NameOffset & 0x7FFFFFFF)
+
 // リソースディレクトリのルートを取得
 static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
 {
     ULONG size;
-    // ImageDirectoryEntryToData は RVA を解決して実際のアドレスを返す
-    // LOAD_LIBRARY_AS_DATAFILE の場合も適切にオフセットを計算する
+    BOOL MappedAsImage = !LDR_IS_RESOURCE_HANDLE(hModule);
     return (PIMAGE_RESOURCE_DIRECTORY)ImageDirectoryEntryToData(
-        LDR_TO_BASE(hModule), LDR_IS_RESOURCE_HANDLE(hModule) ? FALSE : TRUE,
-        IMAGE_DIRECTORY_ENTRY_RESOURCE, &size);
+        LDR_TO_BASE(hModule),
+        MappedAsImage,
+        IMAGE_DIRECTORY_ENTRY_RESOURCE,
+        &size);
 }
 
 // IDまたは名前でエントリを検索
@@ -52,7 +57,7 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot
         while (low <= high) {
             int mid = (low + high) / 2;
             PIMAGE_RESOURCE_DIR_STRING_U pStr =
-                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[mid].NameOffset);
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + LDR_NAME_OFFSET(pEntries[mid]));
 
             // 長さの差を優先して比較し、同じ長さなら中身を比較
             int res = _wcsnicmp(lpKey, pStr->NameString, min(keyLen, (size_t)pStr->Length));
@@ -86,16 +91,17 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
         return NULL;
 
     // Level 2: Name
-    PIMAGE_RESOURCE_DIRECTORY dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
+    PIMAGE_RESOURCE_DIRECTORY dir =
+        (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     e = FindEntry(root, dir, lpName);
     if (!e || !e->DataIsDirectory)
         return NULL;
 
     // Level 3: Language
-    dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + e->OffsetToDirectory);
+    dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     e = FindEntry(root, dir, (LPCWSTR)(ULONG_PTR)wLanguage);
 
-    return (HRSRC)e;
+    return (HRSRC)(ULONG_PTR)e;
 }
 
 HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, WORD wLanguage)
@@ -143,7 +149,7 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
         return 0;
     PIMAGE_RESOURCE_DATA_ENTRY pData =
         (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
-                                     ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
+                                     LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
     return pData->Size;
 }
 
@@ -158,16 +164,17 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
     PBYTE pBase = LDR_TO_BASE(hModule);
     PIMAGE_RESOURCE_DATA_ENTRY pData =
         (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
-                                     ((PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc)->OffsetToData);
+                                     LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
 
     if (LDR_IS_RESOURCE_HANDLE(hModule)) {
         // LOAD_LIBRARY_AS_DATAFILE
         // の場合、RVAをファイルオフセットベースのVAに変換
-        PIMAGE_NT_HEADERS pNt = ImageNtHeader(pBase);
+        PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)ImageNtHeader(pBase);
         if (!pNt)
             return NULL;
 
-        return (HGLOBAL)ImageRvaToVa(pNt, pBase, pData->OffsetToData, NULL);
+        PIMAGE_SECTION_HEADER pSection = NULL;
+        return (HGLOBAL)ImageRvaToVa(pNt, pBase, pData->OffsetToData, &pSection);
     }
 
     // 通常のロード（イメージとしてマップされている）場合は RVA を足すだけ
@@ -196,7 +203,7 @@ BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, 
         LPWSTR type;
         if (pEntries[i].NameIsString) {
             PIMAGE_RESOURCE_DIR_STRING_U pStr =
-                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pEntries[i].NameOffset);
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + LDR_NAME_OFFSET(pEntries[i]));
 
             // 本来はNULL終端されていない可能性があるため、バッファにコピーして終端させる必要があります
             WCHAR szName[MAX_RES_ID_LEN];
@@ -231,7 +238,7 @@ BOOL WONAPI WonEnumResourceNamesW(HMODULE hModule, LPCWSTR lpType, ENUMRESNAMEPR
         return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pNameDir =
-        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + LDR_DIR_OFFSET(*pTypeEntry));
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNameDir + 1);
 
     DWORD totalCount = pNameDir->NumberOfNamedEntries + pNameDir->NumberOfIdEntries;
@@ -242,7 +249,7 @@ BOOL WONAPI WonEnumResourceNamesW(HMODULE hModule, LPCWSTR lpType, ENUMRESNAMEPR
 
         if (pNameEntries[i].NameIsString) {
             PIMAGE_RESOURCE_DIR_STRING_U pStr =
-                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + pNameEntries[i].NameOffset);
+                (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + LDR_NAME_OFFSET(pNameEntries[i]));
             int len = (int)min((size_t)pStr->Length, _countof(szName) - 1);
             memcpy(szName, pStr->NameString, len * sizeof(WCHAR));
             szName[len] = UNICODE_NULL;
@@ -274,13 +281,13 @@ BOOL WONAPI WonEnumResourceLanguagesW(HMODULE hModule, LPCWSTR lpType, LPCWSTR l
         return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pNameDir =
-        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pTypeEntry->OffsetToDirectory);
+         (PIMAGE_RESOURCE_DIRECTORY)(pBase + LDR_DIR_OFFSET(*pTypeEntry));
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = FindEntry(pRootDir, pNameDir, lpName);
     if (!pNameEntry || !pNameEntry->DataIsDirectory)
         return FALSE;
 
     PIMAGE_RESOURCE_DIRECTORY pLangDir =
-        (PIMAGE_RESOURCE_DIRECTORY)(pBase + pNameEntry->OffsetToDirectory);
+        (PIMAGE_RESOURCE_DIRECTORY)(pBase + LDR_DIR_OFFSET(*pNameEntry));
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pLangDir + 1);
 
     DWORD totalCount = pLangDir->NumberOfNamedEntries + pLangDir->NumberOfIdEntries;
