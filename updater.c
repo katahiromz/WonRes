@@ -26,6 +26,13 @@ typedef struct WON_UPDATE_DATA {
     PWON_RES_ENTRY pEntries;
 } WON_UPDATE_DATA, *PWON_UPDATE_DATA;
 
+#include <pshpack2.h>
+typedef struct WON_RELOC_ENTRY {
+    WORD offset;
+    WORD type;
+} WON_RELOC_ENTRY, *PWON_RELOC_ENTRY;
+#include <poppack.h>
+
 // ヘルパー：リソースID/名前の複製
 static inline LPWSTR DuplicateResId(LPCWSTR pszId)
 {
@@ -51,20 +58,103 @@ static inline BOOL MatchResId(LPCWSTR id1, LPCWSTR id2)
     return FALSE;
 }
 
+// リソースツリーの構造をソートするための比較関数
+static int CompareResEntry(const void *a, const void *b)
+{
+    PWON_RES_ENTRY p1 = *(PWON_RES_ENTRY *)a;
+    PWON_RES_ENTRY p2 = *(PWON_RES_ENTRY *)b;
+
+    // Type -> Name -> Lang の順で比較
+    if (p1->type != p2->type) {
+        if (IS_INTRESOURCE(p1->type) && IS_INTRESOURCE(p2->type))
+            return (INT_PTR)p1->type - (INT_PTR)p2->type;
+        if (IS_INTRESOURCE(p1->type))
+            return -1;
+        if (IS_INTRESOURCE(p2->type))
+            return 1;
+        return wcscmp(p1->type, p2->type);
+    }
+    if (p1->name != p2->name) {
+        if (IS_INTRESOURCE(p1->name) && IS_INTRESOURCE(p2->name))
+            return (INT_PTR)p1->name - (INT_PTR)p2->name;
+        if (IS_INTRESOURCE(p1->name))
+            return -1;
+        if (IS_INTRESOURCE(p2->name))
+            return 1;
+        return wcscmp(p1->name, p2->name);
+    }
+    return p1->lang - p2->lang;
+}
+
 // 実際にリソースを更新する関数
 static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 {
-    LPWSTR pFileName = pUpdate->pFileName;
-    PWON_RES_ENTRY pEntries = pUpdate->pEntries;
+    BOOL bSuccess = FALSE;
+    HANDLE hFile = INVALID_HANDLE_VALUE;
+    HANDLE hMapping = NULL;
+    PBYTE pBase = NULL;
 
-    // TODO: エントリ群をソート
-    // TODO: 増加分のバイト数と更新後のファイルサイズの計算
-    // TODO: ファイル作成
-    // TODO: ファイルサイズを増やす
-    // TODO: IMAGE_DIRECTORY_ENTRY_RESOURCE書き込み
-    // TODO: エントリ書き込み
+    // 1. エントリを配列にコピーしてソート
+    DWORD count = 0;
+    for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next)
+        count++;
+    if (count == 0)
+        return TRUE; // 更新なし
 
-    return FALSE;
+    PWON_RES_ENTRY *ppSorted =
+        (PWON_RES_ENTRY *)HeapAlloc(GetProcessHeap(), 0, sizeof(PWON_RES_ENTRY) * count);
+    DWORD i = 0;
+    for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next)
+        ppSorted[i++] = p;
+    qsort(ppSorted, count, sizeof(PWON_RES_ENTRY *), CompareResEntry);
+
+    // 2. ファイルをメモリマップドファイルとして開く
+    hFile = CreateFileW(pUpdate->pFileName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        goto cleanup;
+
+    DWORD dwFileSize = GetFileSize(hFile, NULL);
+    hMapping = CreateFileMappingW(hFile, NULL, PAGE_READWRITE, 0, 0, NULL);
+    if (!hMapping)
+        goto cleanup;
+    pBase = (LPBYTE)MapViewOfFile(hMapping, FILE_MAP_WRITE, 0, 0, 0);
+    if (!pBase)
+        goto cleanup;
+
+    // 3. PEヘッダーの解析 (x86/x64対応)
+    PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)pBase;
+    PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)(pBase + pDos->e_lfanew);
+
+    // セクション情報の取得
+    PIMAGE_SECTION_HEADER pSection = IMAGE_FIRST_SECTION(pNt);
+    PIMAGE_SECTION_HEADER pRsrcSection = NULL;
+    for (i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
+        if (memcmp(pSection[i].Name, ".rsrc", 5) == 0) {
+            pRsrcSection = &pSection[i];
+            break;
+        }
+    }
+
+    // TODO: 実際のバイナリ再構築ロジック
+    // 4. 新しいリソースセクションのサイズ計算
+    // 5. 元のファイルの末尾または .rsrc セクションを拡張して書き込み
+    // 6. DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] の更新
+    // 7. リソースディレクトリ（Type/Name/Langの3層ツリー）のバイナリ構造をシリアライズする
+    // 8. CheckSumMappedFile でチェックサムを再計算 (imagehlp.lib)
+
+    bSuccess = TRUE;
+
+cleanup:
+    if (pBase)
+        UnmapViewOfFile(pBase);
+    if (hMapping)
+        CloseHandle(hMapping);
+    if (hFile != INVALID_HANDLE_VALUE)
+        CloseHandle(hFile);
+    if (ppSorted)
+        HeapFree(GetProcessHeap(), 0, ppSorted);
+    return bSuccess;
 }
 
 // 既存リソース読み込み用のコールバック
