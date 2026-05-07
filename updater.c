@@ -10,7 +10,8 @@
 // 実行モジュール・更新モジュールについてx86/x64両方に対応して下さい。
 // x86からx64の書き込み、x64からx86の書き込みにも対応してください。
 
-#define ALIGN_UP_4(x) (((x) + 3) & ~3)
+// ヘルパー：アライメント計算
+#define ALIGN_UP(size, align) (((size) + (align) - 1) & ~((align) - 1))
 
 // リソースエントリの内部構造体
 typedef struct WON_RES_ENTRY {
@@ -34,6 +35,17 @@ typedef struct WON_RELOC_ENTRY {
     WORD type;
 } WON_RELOC_ENTRY, *PWON_RELOC_ENTRY;
 #include <poppack.h>
+
+#include <pshpack1.h>
+// リソースツリー構築用の補助構造体
+typedef struct {
+    IMAGE_RESOURCE_DIRECTORY Dir;
+    // この後に IMAGE_RESOURCE_DIRECTORY_ENTRY が続く
+} WON_RES_DIR_HDR;
+#include <poppack.h>
+
+// ヘルパー：IDが文字列かどうかを判定
+static inline BOOL IsNamedId(LPCWSTR id) { return !IS_INTRESOURCE(id); }
 
 // ヘルパー：リソースID/名前の複製
 static inline LPWSTR DuplicateResId(LPCWSTR pszId)
@@ -60,32 +72,44 @@ static inline BOOL MatchResId(LPCWSTR id1, LPCWSTR id2)
     return FALSE;
 }
 
-// リソースツリーの構造をソートするための比較関数
-static int CompareResEntry(const void *a, const void *b)
+static int CompareResIdForDirectory(LPCWSTR a, LPCWSTR b)
 {
-    PWON_RES_ENTRY p1 = *(PWON_RES_ENTRY *)a;
-    PWON_RES_ENTRY p2 = *(PWON_RES_ENTRY *)b;
+    if (IsNamedId(a)) {
+        if (IsNamedId(b))
+            return _wcsicmp(a, b); // 文字列同士は大文字小文字無視
+        return -1;                 // aは名前、bはID -> 名前が先
+    }
+    if (IsNamedId(b))
+        return 1; // aはID、bは名前 -> 名前が先
 
-    // Type -> Name -> Lang の順で比較
-    if (p1->type != p2->type) {
-        if (IS_INTRESOURCE(p1->type) && IS_INTRESOURCE(p2->type))
-            return (INT_PTR)p1->type - (INT_PTR)p2->type;
-        if (IS_INTRESOURCE(p1->type))
-            return -1;
-        if (IS_INTRESOURCE(p2->type))
-            return 1;
-        return wcscmp(p1->type, p2->type);
-    }
-    if (p1->name != p2->name) {
-        if (IS_INTRESOURCE(p1->name) && IS_INTRESOURCE(p2->name))
-            return (INT_PTR)p1->name - (INT_PTR)p2->name;
-        if (IS_INTRESOURCE(p1->name))
-            return -1;
-        if (IS_INTRESOURCE(p2->name))
-            return 1;
-        return wcscmp(p1->name, p2->name);
-    }
-    return p1->lang - p2->lang;
+    return (PtrToUshort(a) < PtrToUshort(b)) ? -1 : (PtrToUshort(a) > PtrToUshort(b));
+}
+
+static int CompareResEntry(const void *pa, const void *pb)
+{
+    PWON_RES_ENTRY a = *(PWON_RES_ENTRY *)pa;
+
+    PWON_RES_ENTRY b = *(PWON_RES_ENTRY *)pb;
+
+    int ret;
+
+    ret = CompareResIdForDirectory(a->type, b->type);
+
+    if (ret)
+        return ret;
+
+    ret = CompareResIdForDirectory(a->name, b->name);
+
+    if (ret)
+        return ret;
+
+    if (a->lang < b->lang)
+        return -1;
+
+    if (a->lang > b->lang)
+        return +1;
+
+    return 0;
 }
 
 // 実際にリソースを更新する関数
@@ -93,101 +117,483 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 {
     BOOL bSuccess = FALSE;
     HANDLE hFile = INVALID_HANDLE_VALUE;
+
+    BYTE *pOldFile = NULL;
+    BYTE *pNewFile = NULL;
+    BYTE *pNewRsrc = NULL;
+
+    DWORD cbOldFile = 0;
+    DWORD cbNewFile = 0;
+
     PWON_RES_ENTRY *ppSorted = NULL;
-    PBYTE pNewRsrc = NULL;
+    PIMAGE_RESOURCE_DATA_ENTRY *ppDataEntries = NULL;
 
-    // 1. エントリのソート (既存コード維持)
     DWORD count = 0;
-    for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next) count++;
-    if (count == 0) return TRUE;
 
+    for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next)
+        ++count;
+
+    if (count == 0 && !pUpdate->bDeleteExisting)
+        return TRUE;
+
+    //
+    // sort entries
+    //
     ppSorted = (PWON_RES_ENTRY *)HeapAlloc(GetProcessHeap(), 0, sizeof(PWON_RES_ENTRY *) * count);
-    if (!ppSorted) return FALSE;
-    DWORD i = 0;
-    for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next) ppSorted[i++] = p;
+
+    if (!ppSorted)
+        goto cleanup;
+
+    {
+        DWORD i = 0;
+
+        for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next)
+            ppSorted[i++] = p;
+    }
+
     qsort(ppSorted, count, sizeof(PWON_RES_ENTRY *), CompareResEntry);
 
-    // 2. 新しいリソースセクションのサイズ計算 (レイアウト設計)
-    // 構造: [Directories] -> [Data Entries] -> [Strings] -> [Raw Data]
-    DWORD dwDirCount = 0, dwNameCount = 0, dwLangCount = count;
-    // 重複を除いた Type/Name の数をカウント
-    for (i = 0; i < count; ++i) {
-        if (i == 0 || !MatchResId(ppSorted[i]->type, ppSorted[i-1]->type)) dwDirCount++;
-        if (i == 0 || !MatchResId(ppSorted[i]->type, ppSorted[i-1]->type) ||
-                      !MatchResId(ppSorted[i]->name, ppSorted[i-1]->name)) dwNameCount++;
-    }
+    //
+    // analyze tree
+    //
+    DWORD cTypes = 0;
+    DWORD cbStrings = 0;
 
-    DWORD dwRsrcSize = (dwDirCount + dwNameCount + 1) * sizeof(IMAGE_RESOURCE_DIRECTORY) +
-                       (dwDirCount + dwNameCount + dwLangCount) * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY) +
-                       (dwLangCount * sizeof(IMAGE_RESOURCE_DATA_ENTRY));
+    for (DWORD i = 0; i < count; ++i) {
+        if (i == 0 || !MatchResId(ppSorted[i]->type, ppSorted[i - 1]->type)) {
+            ++cTypes;
 
-    // データ本体のサイズ加算 (4バイトアライメント)
-    DWORD dwDataOffsetStart = ALIGN_UP_4(dwRsrcSize);
-    dwRsrcSize = dwDataOffsetStart;
-    for (i = 0; i < count; ++i) {
-        dwRsrcSize += ALIGN_UP_4(ppSorted[i]->size);
-    }
+            if (IsNamedId(ppSorted[i]->type)) {
+                DWORD cb = sizeof(WORD) + (DWORD)(wcslen(ppSorted[i]->type) * sizeof(WCHAR));
 
-    pNewRsrc = (PBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwRsrcSize);
-    if (!pNewRsrc) goto cleanup;
-
-    // 3. バイナリシリアライズ (ツリー構築)
-    // ここで pNewRsrc に対して IMAGE_RESOURCE_DIRECTORY 等を書き込み、
-    // 各 Entry の OffsetToData を計算して埋めます。
-
-    // 4. ファイルへの書き込みとPE修正
-    hFile = CreateFileW(pUpdate->pFileName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) goto cleanup;
-
-    HANDLE hMap = CreateFileMappingW(hFile, NULL, PAGE_READWRITE, 0, 0, NULL);
-    PBYTE pBase = (PBYTE)MapViewOfFile(hMap, FILE_MAP_WRITE, 0, 0, 0);
-
-    PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)pBase;
-    PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)(pBase + pDos->e_lfanew);
-
-    // リソースセクションを探す
-    PIMAGE_SECTION_HEADER pSection = IMAGE_FIRST_SECTION(pNt);
-    PIMAGE_SECTION_HEADER pRsrc = NULL;
-    for (i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
-        if (memcmp(pSection[i].Name, ".rsrc", 5) == 0) { pRsrc = &pSection[i]; break; }
-    }
-
-    if (pRsrc) {
-        // セクションが足りない場合はファイル末尾を拡張するロジックが必要
-        DWORD rva = pRsrc->VirtualAddress;
-
-        // DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE] の更新
-        if (pNt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-            PIMAGE_NT_HEADERS32 pNt32 = (PIMAGE_NT_HEADERS32)pNt;
-            pNt32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress = rva;
-            pNt32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].Size = dwRsrcSize;
-        } else {
-            PIMAGE_NT_HEADERS64 pNt64 = (PIMAGE_NT_HEADERS64)pNt;
-            pNt64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress = rva;
-            pNt64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].Size = dwRsrcSize;
+                cbStrings += ALIGN_UP(cb, 4);
+            }
         }
 
-        // 実際のデータをファイルポインタに基づいて書き込む
-        SetFilePointer(hFile, pRsrc->PointerToRawData, NULL, FILE_BEGIN);
-        DWORD dwWritten;
-        WriteFile(hFile, pNewRsrc, dwRsrcSize, &dwWritten, NULL);
+        if (i == 0 || !MatchResId(ppSorted[i]->type, ppSorted[i - 1]->type) ||
+            !MatchResId(ppSorted[i]->name, ppSorted[i - 1]->name)) {
+            if (IsNamedId(ppSorted[i]->name)) {
+                DWORD cb = sizeof(WORD) + (DWORD)(wcslen(ppSorted[i]->name) * sizeof(WCHAR));
+
+                cbStrings += ALIGN_UP(cb, 4);
+            }
+        }
     }
 
-    UnmapViewOfFile(pBase);
-    CloseHandle(hMap);
+    //
+    // directory sizing
+    //
+    DWORD cbRoot =
+        sizeof(IMAGE_RESOURCE_DIRECTORY) + cTypes * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
 
-    // 5. チェックサムの再計算
-    DWORD dwHeaderSum, dwCheckSum;
-    if (MapFileAndCheckSumW(pUpdate->pFileName, &dwHeaderSum, &dwCheckSum) == CHECKSUM_SUCCESS) {
-        // チェックサムをファイルに書き戻す処理
+    DWORD cbTypeDirs = 0;
+    DWORD cbNameDirs = 0;
+
+    for (DWORD i = 0; i < count;) {
+        DWORD iType = i;
+
+        while (i < count && MatchResId(ppSorted[i]->type, ppSorted[iType]->type)) {
+            ++i;
+        }
+
+        DWORD cThisNames = 0;
+
+        for (DWORD j = iType; j < i;) {
+            DWORD jName = j;
+
+            while (j < i && MatchResId(ppSorted[j]->name, ppSorted[jName]->name)) {
+                ++j;
+            }
+
+            ++cThisNames;
+
+            DWORD cLangs = j - jName;
+
+            cbNameDirs +=
+                sizeof(IMAGE_RESOURCE_DIRECTORY) + cLangs * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
+        }
+
+        cbTypeDirs +=
+            sizeof(IMAGE_RESOURCE_DIRECTORY) + cThisNames * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
     }
+
+    DWORD cbDataEntries = count * sizeof(IMAGE_RESOURCE_DATA_ENTRY);
+
+    DWORD offStrings = ALIGN_UP(cbRoot + cbTypeDirs + cbNameDirs + cbDataEntries, 4);
+
+    DWORD offData = ALIGN_UP(offStrings + cbStrings, 8);
+
+    DWORD cbTotal = offData;
+
+    for (DWORD i = 0; i < count; ++i) {
+        cbTotal += ALIGN_UP(ppSorted[i]->size, 4);
+    }
+
+    //
+    // allocate
+    //
+    pNewRsrc = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbTotal);
+
+    if (!pNewRsrc)
+        goto cleanup;
+
+    ppDataEntries = (PIMAGE_RESOURCE_DATA_ENTRY *)HeapAlloc(
+        GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(PIMAGE_RESOURCE_DATA_ENTRY *) * count);
+
+    if (!ppDataEntries)
+        goto cleanup;
+
+    //
+    // build resource tree
+    //
+    DWORD offTypeDir = cbRoot;
+    DWORD offNameDir = cbRoot + cbTypeDirs;
+    DWORD offDataEntry = cbRoot + cbTypeDirs + cbNameDirs;
+    DWORD offString = offStrings;
+    DWORD offRawData = offData;
+
+    PIMAGE_RESOURCE_DIRECTORY pRoot = (PIMAGE_RESOURCE_DIRECTORY)pNewRsrc;
+
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY pRootEntries =
+        (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNewRsrc + sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+    DWORD iRootEntry = 0;
+    DWORD iDataEntry = 0;
+
+    for (DWORD i = 0; i < count;) {
+        DWORD iType = i;
+
+        while (i < count && MatchResId(ppSorted[i]->type, ppSorted[iType]->type)) {
+            ++i;
+        }
+
+        DWORD cThisNames = 0;
+
+        for (DWORD j = iType; j < i;) {
+            DWORD jName = j;
+
+            while (j < i && MatchResId(ppSorted[j]->name, ppSorted[jName]->name)) {
+                ++j;
+            }
+
+            ++cThisNames;
+        }
+
+        DWORD thisTypeDirOff = offTypeDir;
+
+        offTypeDir +=
+            sizeof(IMAGE_RESOURCE_DIRECTORY) + cThisNames * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
+
+        PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntry = &pRootEntries[iRootEntry++];
+
+        if (IsNamedId(ppSorted[iType]->type)) {
+            WORD cch = (WORD)wcslen(ppSorted[iType]->type);
+
+            pTypeEntry->NameOffset = offString | IMAGE_RESOURCE_NAME_IS_STRING;
+
+            *(WORD *)(pNewRsrc + offString) = cch;
+
+            memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[iType]->type, cch * sizeof(WCHAR));
+
+            offString += sizeof(WORD) + cch * sizeof(WCHAR);
+            offString = ALIGN_UP(offString, 4);
+
+            ++pRoot->NumberOfNamedEntries;
+        } else {
+            pTypeEntry->Id = PtrToUshort(ppSorted[iType]->type);
+
+            ++pRoot->NumberOfIdEntries;
+        }
+
+        pTypeEntry->OffsetToDirectory = thisTypeDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
+
+        PIMAGE_RESOURCE_DIRECTORY pTypeDir = (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisTypeDirOff);
+        ZeroMemory(pTypeDir, sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+        PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntries =
+            (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((BYTE *)pTypeDir + sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+        DWORD iTypeEntry = 0;
+
+        for (DWORD j = iType; j < i;) {
+            DWORD jName = j;
+
+            while (j < i && MatchResId(ppSorted[j]->name, ppSorted[jName]->name)) {
+                ++j;
+            }
+
+            DWORD cLangs = j - jName;
+
+            DWORD thisLangDirOff = offNameDir;
+
+            offNameDir +=
+                sizeof(IMAGE_RESOURCE_DIRECTORY) + cLangs * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
+
+            PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = &pTypeEntries[iTypeEntry++];
+
+            if (IsNamedId(ppSorted[jName]->name)) {
+                WORD cch = (WORD)wcslen(ppSorted[jName]->name);
+
+                pNameEntry->NameOffset = offString | IMAGE_RESOURCE_NAME_IS_STRING;
+
+                *(WORD *)(pNewRsrc + offString) = cch;
+
+                memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[jName]->name,
+                       cch * sizeof(WCHAR));
+
+                offString += sizeof(WORD) + cch * sizeof(WCHAR);
+                offString = ALIGN_UP(offString, 4);
+
+                ++pTypeDir->NumberOfNamedEntries;
+            } else {
+                pNameEntry->Id = PtrToUshort(ppSorted[jName]->name);
+
+                ++pTypeDir->NumberOfIdEntries;
+            }
+
+            pNameEntry->OffsetToDirectory = thisLangDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
+
+            PIMAGE_RESOURCE_DIRECTORY pLangDir =
+                (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisLangDirOff);
+            ZeroMemory(pLangDir, sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+            PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntries =
+                (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((BYTE *)pLangDir +
+                                                  sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+            for (DWORD k = 0; k < cLangs; ++k) {
+                PWON_RES_ENTRY pRes = ppSorted[jName + k];
+
+                PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntry = &pLangEntries[k];
+
+                pLangEntry->Id = pRes->lang;
+                pLangEntry->OffsetToData = offDataEntry & 0x7FFFFFFF;
+
+                ++pLangDir->NumberOfIdEntries;
+
+                PIMAGE_RESOURCE_DATA_ENTRY pDataEntry =
+                    (PIMAGE_RESOURCE_DATA_ENTRY)(pNewRsrc + offDataEntry);
+
+                ppDataEntries[iDataEntry++] = pDataEntry;
+
+                pDataEntry->OffsetToData = offRawData;
+                pDataEntry->Size = pRes->size;
+                pDataEntry->CodePage = 0;
+                pDataEntry->Reserved = 0;
+
+                memcpy(pNewRsrc + offRawData, pRes->data, pRes->size);
+
+                offDataEntry += sizeof(IMAGE_RESOURCE_DATA_ENTRY);
+                offRawData += ALIGN_UP(pRes->size, 8);
+            }
+        }
+    }
+
+    //
+    // load file
+    //
+    hFile = CreateFileW(pUpdate->pFileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL,
+                        OPEN_EXISTING, 0, NULL);
+
+    if (hFile == INVALID_HANDLE_VALUE)
+        goto cleanup;
+
+    cbOldFile = GetFileSize(hFile, NULL);
+
+    pOldFile = (BYTE *)HeapAlloc(GetProcessHeap(), 0, cbOldFile);
+
+    if (!pOldFile)
+        goto cleanup;
+
+    {
+        DWORD cbRead;
+
+        if (!ReadFile(hFile, pOldFile, cbOldFile, &cbRead, NULL)) {
+            goto cleanup;
+        }
+
+        if (cbRead != cbOldFile)
+            goto cleanup;
+    }
+
+    //
+    // parse PE
+    //
+    PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)pOldFile;
+
+    if (pDos->e_magic != IMAGE_DOS_SIGNATURE)
+        goto cleanup;
+
+    PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)(pOldFile + pDos->e_lfanew);
+
+    if (pNt->Signature != IMAGE_NT_SIGNATURE)
+        goto cleanup;
+
+    BOOL b64 = pNt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC;
+
+    DWORD fileAlign;
+    DWORD secAlign;
+
+    PIMAGE_SECTION_HEADER pSections;
+
+    if (b64) {
+        PIMAGE_NT_HEADERS64 pNt64 = (PIMAGE_NT_HEADERS64)pNt;
+
+        fileAlign = pNt64->OptionalHeader.FileAlignment;
+        secAlign = pNt64->OptionalHeader.SectionAlignment;
+
+        pSections = IMAGE_FIRST_SECTION(pNt64);
+    } else {
+        PIMAGE_NT_HEADERS32 pNt32 = (PIMAGE_NT_HEADERS32)pNt;
+
+        fileAlign = pNt32->OptionalHeader.FileAlignment;
+        secAlign = pNt32->OptionalHeader.SectionAlignment;
+
+        pSections = IMAGE_FIRST_SECTION(pNt32);
+    }
+
+    WORD nSections = pNt->FileHeader.NumberOfSections;
+
+    PIMAGE_SECTION_HEADER pLast = &pSections[nSections - 1];
+
+    DWORD newVA = ALIGN_UP(
+        pLast->VirtualAddress + max(pLast->Misc.VirtualSize, pLast->SizeOfRawData), secAlign);
+
+    DWORD newRaw = ALIGN_UP(pLast->PointerToRawData + pLast->SizeOfRawData, fileAlign);
+
+    DWORD cbRaw = ALIGN_UP(cbTotal, fileAlign);
+
+    cbNewFile = newRaw + cbRaw;
+
+    pNewFile = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbNewFile);
+
+    if (!pNewFile)
+        goto cleanup;
+
+    memcpy(pNewFile, pOldFile, cbOldFile);
+
+    //
+    // refresh pointers
+    //
+    pDos = (PIMAGE_DOS_HEADER)pNewFile;
+
+    pNt = (PIMAGE_NT_HEADERS)(pNewFile + pDos->e_lfanew);
+
+    if (b64) {
+        pSections = IMAGE_FIRST_SECTION((PIMAGE_NT_HEADERS64)pNt);
+    } else {
+        pSections = IMAGE_FIRST_SECTION((PIMAGE_NT_HEADERS32)pNt);
+    }
+
+    {
+        BYTE *pSecEnd = (BYTE *)&pSections[nSections + 1];
+
+        DWORD cbHeaders = b64 ? ((PIMAGE_NT_HEADERS64)pNt)->OptionalHeader.SizeOfHeaders
+                              : ((PIMAGE_NT_HEADERS32)pNt)->OptionalHeader.SizeOfHeaders;
+
+        if ((DWORD)(pSecEnd - pNewFile) > cbHeaders)
+            goto cleanup;
+    }
+
+    //
+    // add section
+    //
+    PIMAGE_SECTION_HEADER pNewSec = &pSections[nSections];
+
+    ZeroMemory(pNewSec, sizeof(*pNewSec));
+
+    memcpy(pNewSec->Name, ".rsrc", 5);
+
+    pNewSec->Misc.VirtualSize = ALIGN_UP(cbTotal, 4);
+
+    pNewSec->VirtualAddress = newVA;
+    pNewSec->PointerToRawData = newRaw;
+    pNewSec->SizeOfRawData = cbRaw;
+
+    pNewSec->Characteristics = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ;
+
+    //
+    // patch RVA
+    //
+    for (DWORD i = 0; i < count; ++i) {
+        ppDataEntries[i]->OffsetToData += newVA;
+    }
+
+    //
+    // copy .rsrc
+    //
+    memcpy(pNewFile + newRaw, pNewRsrc, cbTotal);
+
+    //
+    // update PE
+    //
+    ++pNt->FileHeader.NumberOfSections;
+
+    DWORD sizeImage = ALIGN_UP(newVA + cbRaw, secAlign);
+
+    if (b64) {
+        PIMAGE_NT_HEADERS64 pNt64 = (PIMAGE_NT_HEADERS64)pNt;
+
+        pNt64->OptionalHeader.SizeOfImage = sizeImage;
+
+        pNt64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress = newVA;
+
+        pNt64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].Size = cbTotal;
+
+        pNt64->OptionalHeader.CheckSum = 0;
+    } else {
+        PIMAGE_NT_HEADERS32 pNt32 = (PIMAGE_NT_HEADERS32)pNt;
+
+        pNt32->OptionalHeader.SizeOfImage = sizeImage;
+
+        pNt32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].VirtualAddress = newVA;
+
+        pNt32->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE].Size = cbTotal;
+
+        pNt32->OptionalHeader.CheckSum = 0;
+    }
+
+    //
+    // write file
+    //
+    SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+
+    {
+        DWORD cbWritten;
+
+        if (!WriteFile(hFile, pNewFile, cbNewFile, &cbWritten, NULL)) {
+            goto cleanup;
+        }
+
+        if (cbWritten != cbNewFile)
+            goto cleanup;
+    }
+
+    SetFilePointer(hFile, cbNewFile, NULL, FILE_BEGIN);
+    SetEndOfFile(hFile);
 
     bSuccess = TRUE;
 
 cleanup:
-    if (pNewRsrc) HeapFree(GetProcessHeap(), 0, pNewRsrc);
-    if (ppSorted) HeapFree(GetProcessHeap(), 0, ppSorted);
-    if (hFile != INVALID_HANDLE_VALUE) CloseHandle(hFile);
+
+    if (ppDataEntries)
+        HeapFree(GetProcessHeap(), 0, ppDataEntries);
+
+    if (ppSorted)
+        HeapFree(GetProcessHeap(), 0, ppSorted);
+
+    if (pNewRsrc)
+        HeapFree(GetProcessHeap(), 0, pNewRsrc);
+
+    if (pOldFile)
+        HeapFree(GetProcessHeap(), 0, pOldFile);
+
+    if (pNewFile)
+        HeapFree(GetProcessHeap(), 0, pNewFile);
+
+    if (hFile != INVALID_HANDLE_VALUE)
+        CloseHandle(hFile);
+
     return bSuccess;
 }
 
