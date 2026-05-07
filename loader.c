@@ -8,6 +8,7 @@
 // Script:
 // C99/Win32でFindResourceExWなどのリソースローダーを再実装してください。LoadLibraryExのLOAD_LIBRARY_AS_DATAFILEにも対応してください。
 // 実行モジュール・読み込みモジュールについてx86/x64両方に対応して下さい。
+// x86からx64の読み込み、x64からx86の読み込みにも対応してください。
 
 #define LDR_IS_RESOURCE_HANDLE(h) (((ULONG_PTR)(h) & 3) != 0)
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
