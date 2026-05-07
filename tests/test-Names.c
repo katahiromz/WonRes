@@ -44,17 +44,10 @@ int main(void)
 {
     HMODULE mod = LoadLibraryExW(L"user32.dll", NULL, LOAD_LIBRARY_AS_DATAFILE);
 
-    WonEnumResourceNamesA(
-        mod,
-        (LPCSTR)RT_GROUP_ICON,
-        NameEnumProcA,
-        0);
-
-    WonEnumResourceNamesW(
-        mod,
-        RT_GROUP_ICON,
-        NameEnumProcW,
-        0);
+    BOOL ret1 = WonEnumResourceNamesA(mod, (LPCSTR)RT_GROUP_ICON, NameEnumProcA, 0);
+    BOOL ret2 = WonEnumResourceNamesW(mod, RT_GROUP_ICON, NameEnumProcW, 0);
 
     FreeLibrary(mod);
+
+    return (ret1 && ret2) ? 0 : 1;
 }

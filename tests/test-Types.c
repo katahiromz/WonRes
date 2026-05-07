@@ -32,8 +32,8 @@ BOOL CALLBACK MyEnumProcW(
 int main(void)
 {
     HMODULE mod = LoadLibraryW(L"user32.dll");
-    WonEnumResourceTypesA(mod, MyEnumProcA, 0);
-    WonEnumResourceTypesW(mod, MyEnumProcW, 0);
+    BOOL ret1 = WonEnumResourceTypesA(mod, MyEnumProcA, 0);
+    BOOL ret2 = WonEnumResourceTypesW(mod, MyEnumProcW, 0);
     FreeLibrary(mod);
-    return 0;
+    return (ret1 && ret2) ? 0 : 1;
 }

@@ -26,3 +26,12 @@ target_link_libraries(test-UpdA PRIVATE WonRes)
 # test-UpdW.exe
 add_executable(test-UpdW test-UpdW.c)
 target_link_libraries(test-UpdW PRIVATE WonRes)
+
+# tests
+add_test(NAME Types COMMAND test-Types WORKING_DIRECTORY .)
+add_test(NAME Names COMMAND test-Names WORKING_DIRECTORY .)
+add_test(NAME Langs COMMAND test-Langs WORKING_DIRECTORY .)
+add_test(NAME AllA COMMAND test-AllA shell32.dll WORKING_DIRECTORY .)
+add_test(NAME AllW COMMAND test-AllW shell32.dll WORKING_DIRECTORY .)
+add_test(NAME UpdA COMMAND test-UpdA WORKING_DIRECTORY .)
+add_test(NAME UpdW COMMAND test-UpdW WORKING_DIRECTORY .)

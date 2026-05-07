@@ -4,6 +4,9 @@
 # CMake minimum version
 cmake_minimum_required(VERSION 3.10)
 
+# Enable testing
+enable_testing()
+
 # project name and language
 project(WonRes C)
 

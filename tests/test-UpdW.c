@@ -18,5 +18,5 @@ int main(void)
     FreeLibrary(mod);
     printf("hRsrc: %p\n", hRsrc);
 
-    return 0;
+    return hRsrc ? 0 : 1;
 }

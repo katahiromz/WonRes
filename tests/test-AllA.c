@@ -52,7 +52,7 @@ BOOL CALLBACK TypeEnumProcA(
 int main(int argc, char **argv)
 {
     HMODULE hModule = LoadLibraryA(argv[1]);
-    WonEnumResourceTypesA(hModule, TypeEnumProcA, 0);
+    BOOL ret = WonEnumResourceTypesA(hModule, TypeEnumProcA, 0);
     FreeLibrary(hModule);
-    return 0;
+    return ret ? 0 : 1;
 }

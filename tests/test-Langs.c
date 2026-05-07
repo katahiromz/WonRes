@@ -48,14 +48,14 @@ int main(void)
 {
     HMODULE mod = LoadLibraryW(L"user32.dll");
 
-    WonEnumResourceLanguagesA(
+    BOOL ret1 = WonEnumResourceLanguagesA(
         mod,
         (LPCSTR)RT_GROUP_ICON,
         MAKEINTRESOURCEA(100),
         LangEnumProcA,
         0);
 
-    WonEnumResourceLanguagesW(
+    BOOL ret2 = WonEnumResourceLanguagesW(
         mod,
         RT_GROUP_ICON,
         MAKEINTRESOURCEW(100),
@@ -63,4 +63,6 @@ int main(void)
         0);
 
     FreeLibrary(mod);
+
+    return (ret1 && ret2) ? 0 : 1;
 }
