@@ -28,10 +28,11 @@ BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard)
 
 HANDLE WONAPI WonBeginUpdateResourceA(LPCSTR pFileName, BOOL bDeleteExistingResources)
 {
-    WCHAR szFileName[MAX_PATH];
-    if (!MultiByteToWideChar(CP_ACP, 0, pFileName, -1, szFileName, _countof(szFileName)))
+    WCHAR szFileNameW[MAX_PATH];
+    if (!MultiByteToWideChar(CP_ACP, 0, pFileName, -1, szFileNameW, _countof(szFileNameW)))
         return NULL;
-    return WonBeginUpdateResourceW(szFileName, bDeleteExistingResources);
+    szFileNameW[_countof(szFileNameW) - 1] = UNICODE_NULL;
+    return WonBeginUpdateResourceW(szFileNameW, bDeleteExistingResources);
 }
 
 BOOL WONAPI WonUpdateResourceA(HANDLE hUpdate, LPCSTR lpType, LPCSTR lpName, WORD wLanguage,
