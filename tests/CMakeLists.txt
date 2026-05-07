@@ -19,10 +19,10 @@ target_link_libraries(test-AllA PRIVATE WonRes)
 add_executable(test-AllW test-AllW.c)
 target_link_libraries(test-AllW PRIVATE WonRes)
 
-# test-UpdateA.exe
-add_executable(test-UpdateA test-UpdateA.c)
-target_link_libraries(test-UpdateA PRIVATE WonRes)
+# test-UpdA.exe
+add_executable(test-UpdA test-UpdA.c)
+target_link_libraries(test-UpdA PRIVATE WonRes)
 
-# test-UpdateW.exe
-add_executable(test-UpdateW test-UpdateW.c)
-target_link_libraries(test-UpdateW PRIVATE WonRes)
+# test-UpdW.exe
+add_executable(test-UpdW test-UpdW.c)
+target_link_libraries(test-UpdW PRIVATE WonRes)
