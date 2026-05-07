@@ -1,10 +1,16 @@
 #include <windows.h>
 #include <stdio.h>
+#include <string.h>
 #include "WonRes.h"
 
 int main(void)
 {
-    HANDLE hUpdate = WonBeginUpdateResourceW(L"test-Langs.exe", FALSE);
+    WCHAR szPath[MAX_PATH];
+    GetModuleFileNameW(NULL, szPath, _countof(szPath));
+    LPWSTR pch = wcsrchr(szPath, '\\');
+    *pch = 0;
+    lstrcatW(szPath, L"\\test-Langs.exe");
+    HANDLE hUpdate = WonBeginUpdateResourceW(szPath, TRUE);
     printf("hUpdate: %p\n", hUpdate);
     char sz[] = "This is a test";
     BOOL ret;
@@ -13,10 +19,18 @@ int main(void)
     ret = WonEndUpdateResourceW(hUpdate, FALSE);
     printf("ret: %d\n", ret);
 
-    HINSTANCE mod = LoadLibraryExW(L"test-Langs.exe", NULL, LOAD_LIBRARY_AS_DATAFILE);
-    HRSRC hRsrc = FindResourceExW(mod, (LPCWSTR)RT_RCDATA, L"Test", 0);
-    FreeLibrary(mod);
+    HINSTANCE mod = LoadLibraryExW(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    HRSRC hRsrc = WonFindResourceExW(mod, (LPCWSTR)RT_RCDATA, L"Test", 0);
     printf("hRsrc: %p\n", hRsrc);
+    DWORD size = WonSizeofResource(mod, hRsrc);
+    printf("size: %ld\n", size);
+    HGLOBAL hGlobal = WonLoadResource(mod, hRsrc);
+    printf("hGlobal: %p\n", hGlobal);
+    LPVOID pv = WonLockResource(hGlobal);
+    printf("pv: %p\n", pv);
+    ret = pv && (memcmp(pv, sz, sizeof(sz)) == 0) && size == sizeof(sz);
+    FreeLibrary(mod);
+    printf("ret: %d\n", ret);
 
-    return hRsrc ? 0 : 1;
+    return ret ? 0 : 1;
 }

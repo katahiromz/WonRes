@@ -46,7 +46,7 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
 
 DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc);
 HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc);
-LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData);
+LPVOID WONAPI WonLockResource(HGLOBAL hResData);
 
 HANDLE WONAPI WonBeginUpdateResourceA(LPCSTR pFileName, BOOL bDeleteExistingResources);
 HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingResources);

@@ -186,7 +186,10 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 ////////////////////////////////////////////////////////////////////////////////////
 // Lock resource
 
-LPVOID WONAPI WonLockResource(HMODULE hModule, HGLOBAL hResData) { return (LPVOID)hResData; }
+LPVOID WONAPI WonLockResource(HGLOBAL hResData)
+{
+    return (LPVOID)hResData;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Enum resource
