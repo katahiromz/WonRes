@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <imagehlp.h>
 #include <string.h>
+#include <time.h>
 #include "WonRes.h"
 
 // Script: C99/Win32でBeginUpdateResourceWなどのリソース更新関数を再実装してください。
@@ -106,15 +107,12 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 {
     BOOL bSuccess = FALSE;
     HANDLE hFile = INVALID_HANDLE_VALUE;
-
     PBYTE pOldFile = NULL, pNewFile = NULL, pNewRsrc = NULL;
     DWORD cbOldFile = 0, cbNewFile = 0;
-
     PWON_RES_ENTRY *ppSorted = NULL;
     PIMAGE_RESOURCE_DATA_ENTRY *ppDataEntries = NULL;
 
     DWORD count = 0;
-
     for (PWON_RES_ENTRY p = pUpdate->pEntries; p; p = p->next)
         ++count;
 
@@ -199,15 +197,15 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         goto cleanup;
 
     // build resource tree
-    DWORD offTypeDir = cbRoot;
-    DWORD offNameDir = cbRoot + cbTypeDirs;
+    DWORD offTypeDir = cbRoot, offNameDir = cbRoot + cbTypeDirs;
     DWORD offDataEntry = cbRoot + cbTypeDirs + cbNameDirs;
-    DWORD offString = offStrings;
-    DWORD offRawData = offData;
+    DWORD offString = offStrings, offRawData = offData;
 
     PIMAGE_RESOURCE_DIRECTORY pRoot = (PIMAGE_RESOURCE_DIRECTORY)pNewRsrc;
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pRootEntries =
         (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNewRsrc + sizeof(IMAGE_RESOURCE_DIRECTORY));
+
+    pRoot->TimeDateStamp = (DWORD)time(NULL);
 
     DWORD iRootEntry = 0, iDataEntry = 0;
 
