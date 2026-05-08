@@ -7,8 +7,8 @@ cmake_minimum_required(VERSION 3.10)
 # Enable testing
 enable_testing()
 
-# project name and languages
-project(WonRes C RC)
+# project name, version, and languages
+project(WonRes VERSION 1.0 LANGUAGES C RC)
 
 # Unicode support
 add_definitions(-DUNICODE -D_UNICODE)

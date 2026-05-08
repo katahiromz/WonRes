@@ -68,8 +68,8 @@ BOOL WONAPI WonUpdateResourceW(
     LPVOID lpData,
     DWORD cbData);
 
-int WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, int nBufferMax);
-int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nBufferMax);
+INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax);
+INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax);
 
 #ifdef UNICODE
     #define WonEnumResourceTypes WonEnumResourceTypesW

@@ -6,7 +6,7 @@
 #include <string.h>
 #include "WonRes.h"
 
-int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nBufferMax)
+INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax)
 {
     if (!lpBuffer)
         return 0;
@@ -24,7 +24,7 @@ int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nB
 
     uID &= 0x000F;
 
-    for (int i = 0; i < uID; i++)
+    for (INT i = 0; i < uID; i++)
         p += *p + 1;
 
     if (nBufferMax == 0) {
@@ -32,7 +32,7 @@ int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nB
         return *p;
     }
 
-    int i = min(nBufferMax - 1, *p);
+    INT i = min(nBufferMax - 1, *p);
     if (i > 0) {
         memcpy(lpBuffer, p + 1, i * sizeof(WCHAR));
         lpBuffer[i] = UNICODE_NULL;
@@ -46,12 +46,12 @@ int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nB
     return i;
 }
 
-int WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, int nBufferMax)
+INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax)
 {
     if (!nBufferMax)
         return -1;
 
-    int retval = 0;
+    INT retval = 0;
     HRSRC hRsrc =
         WonFindResourceW(hInstance, MAKEINTRESOURCEW((LOWORD(uID) >> 4) + 1), (LPWSTR)RT_STRING);
     if (hRsrc) {
