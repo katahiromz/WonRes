@@ -33,7 +33,7 @@ BOOL WONAPI WonUpdateResource(
     LPVOID lpData,
     DWORD cbData);
 
-int WONAPI WonLoadString(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, int nBufferMax);
+INT WONAPI WonLoadString(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax);
 ```
 
 License: MIT
