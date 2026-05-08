@@ -12,15 +12,15 @@ int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nB
         return 0;
 
     HRSRC hRsrc =
-        FindResourceW(hInstance, MAKEINTRESOURCEW((LOWORD(uID) >> 4) + 1), (LPWSTR)RT_STRING);
+        WonFindResourceW(hInstance, MAKEINTRESOURCEW((LOWORD(uID) >> 4) + 1), (LPWSTR)RT_STRING);
     if (!hRsrc)
         return 0;
 
-    HGLOBAL hGlobal = LoadResource(hInstance, hRsrc);
+    HGLOBAL hGlobal = WonLoadResource(hInstance, hRsrc);
     if (!hGlobal)
         return 0;
 
-    LPWSTR p = LockResource(hGlobal);
+    LPWSTR p = WonLockResource(hGlobal);
 
     uID &= 0x000F;
 
@@ -53,11 +53,11 @@ int WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, int nBu
 
     int retval = 0;
     HRSRC hRsrc =
-        FindResourceW(hInstance, MAKEINTRESOURCEW((LOWORD(uID) >> 4) + 1), (LPWSTR)RT_STRING);
+        WonFindResourceW(hInstance, MAKEINTRESOURCEW((LOWORD(uID) >> 4) + 1), (LPWSTR)RT_STRING);
     if (hRsrc) {
-        HGLOBAL hGlobal = LoadResource(hInstance, hRsrc);
+        HGLOBAL hGlobal = WonLoadResource(hInstance, hRsrc);
         if (hGlobal) {
-            LPWSTR p = LockResource(hGlobal);
+            LPWSTR p = WonLockResource(hGlobal);
             uID &= 0x000F;
 
             while (uID--)
