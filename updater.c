@@ -315,7 +315,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
                 memcpy(pNewRsrc + offRawData, pRes->data, pRes->size);
 
                 offDataEntry += sizeof(IMAGE_RESOURCE_DATA_ENTRY);
-                offRawData += ALIGN_UP(pRes->size, 8);
+                offRawData += ALIGN_UP(pRes->size, 4);
             }
         }
     }
