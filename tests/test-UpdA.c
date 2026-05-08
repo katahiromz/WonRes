@@ -11,6 +11,7 @@ int main(void)
     LPSTR pch = strrchr(szPath, '\\');
     *pch = 0;
     lstrcatA(szPath, "\\test-Langs.exe");
+
     HANDLE hUpdate = WonBeginUpdateResourceA(szPath, TRUE);
     printf("hUpdate: %p\n", hUpdate);
     char sz[] = "This is a test";
@@ -22,12 +23,14 @@ int main(void)
 
     HINSTANCE mod = LoadLibraryExA(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     HRSRC hRsrc = WonFindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test", 0);
+    DWORD err = GetLastError();
     printf("hRsrc: %p\n", hRsrc);
-    DWORD size = WonSizeofResource(mod, hRsrc);
+    printf("err: %ld\n", err);
+    DWORD size = SizeofResource(mod, hRsrc);
     printf("size: %ld\n", size);
-    HGLOBAL hGlobal = WonLoadResource(mod, hRsrc);
+    HGLOBAL hGlobal = LoadResource(mod, hRsrc);
     printf("hGlobal: %p\n", hGlobal);
-    LPVOID pv = WonLockResource(hGlobal);
+    LPVOID pv = LockResource(hGlobal);
     printf("pv: %p\n", pv);
     ret = pv && (memcmp(pv, sz, sizeof(sz)) == 0) && size == sizeof(sz);
     FreeLibrary(mod);

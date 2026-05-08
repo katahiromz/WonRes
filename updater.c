@@ -236,8 +236,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
             ++pRoot->NumberOfIdEntries;
         }
 
-        pTypeEntry->OffsetToDirectory = thisTypeDirOff;
-        pTypeEntry->DataIsDirectory = TRUE;
+        pTypeEntry->OffsetToData = thisTypeDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
 
         PIMAGE_RESOURCE_DIRECTORY pTypeDir = (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisTypeDirOff);
         ZeroMemory(pTypeDir, sizeof(IMAGE_RESOURCE_DIRECTORY));
@@ -273,8 +272,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
                 ++pTypeDir->NumberOfIdEntries;
             }
 
-            pNameEntry->OffsetToDirectory = thisLangDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
-            pNameEntry->DataIsDirectory = TRUE;
+            pNameEntry->OffsetToData = thisLangDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
 
             PIMAGE_RESOURCE_DIRECTORY pLangDir =
                 (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisLangDirOff);
@@ -289,7 +287,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 
                 PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntry = &pLangEntries[k];
                 pLangEntry->Id = pRes->lang;
-                pLangEntry->OffsetToData = offDataEntry & 0x7FFFFFFF;
+                pLangEntry->OffsetToData = offDataEntry;
                 ++pLangDir->NumberOfIdEntries;
 
                 PIMAGE_RESOURCE_DATA_ENTRY pDataEntry =
