@@ -61,7 +61,7 @@ static inline BOOL MatchResId(LPCWSTR id1, LPCWSTR id2)
     if (IS_INTRESOURCE(id1) && IS_INTRESOURCE(id2))
         return id1 == id2;
     if (!IS_INTRESOURCE(id1) && !IS_INTRESOURCE(id2))
-        return wcscmp(id1, id2) == 0;
+        return _wcsicmp(id1, id2) == 0;
     return FALSE;
 }
 
@@ -183,7 +183,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     DWORD cbTotal       = offData;
 
     for (DWORD i = 0; i < count; ++i)
-        cbTotal += ALIGN_UP(ppSorted[i]->size, 4);
+        cbTotal += ALIGN_UP(ppSorted[i]->size, 8);
 
     // allocate resource section buffer
     pNewRsrc = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbTotal);
@@ -231,7 +231,8 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 
         if (IsNamedId(ppSorted[iType]->type)) {
             WORD cch = (WORD)wcslen(ppSorted[iType]->type);
-            pTypeEntry->NameOffset = offString | IMAGE_RESOURCE_NAME_IS_STRING;
+            pTypeEntry->NameOffset = offString;
+            pTypeEntry->NameIsString = TRUE;
             *(WORD *)(pNewRsrc + offString) = cch;
             memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[iType]->type,
                    cch * sizeof(WCHAR));
@@ -243,7 +244,8 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
             ++pRoot->NumberOfIdEntries;
         }
 
-        pTypeEntry->OffsetToDirectory = thisTypeDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
+        pTypeEntry->OffsetToDirectory = thisTypeDirOff;
+        pTypeEntry->DataIsDirectory = TRUE;
 
         PIMAGE_RESOURCE_DIRECTORY pTypeDir =
             (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisTypeDirOff);
@@ -267,7 +269,8 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 
             if (IsNamedId(ppSorted[jName]->name)) {
                 WORD cch = (WORD)wcslen(ppSorted[jName]->name);
-                pNameEntry->NameOffset = offString | IMAGE_RESOURCE_NAME_IS_STRING;
+                pNameEntry->NameOffset = offString;
+                pNameEntry->NameIsString = TRUE;
                 *(WORD *)(pNewRsrc + offString) = cch;
                 memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[jName]->name,
                        cch * sizeof(WCHAR));
@@ -280,6 +283,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
             }
 
             pNameEntry->OffsetToDirectory = thisLangDirOff | IMAGE_RESOURCE_DATA_IS_DIRECTORY;
+            pNameEntry->DataIsDirectory = TRUE;
 
             PIMAGE_RESOURCE_DIRECTORY pLangDir =
                 (PIMAGE_RESOURCE_DIRECTORY)(pNewRsrc + thisLangDirOff);
