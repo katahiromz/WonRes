@@ -126,7 +126,8 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
     dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
     for (iLangId = 0; iLangId < cLangIds; ++iLangId) {
         e = FindEntry(root, dir, (LPCWSTR)UlongToPtr(aLangIds[iLangId]));
-        if (e) return (HRSRC)(ULONG_PTR)e;
+        if (e)
+            return (HRSRC)(ULONG_PTR)e;
     }
 
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(dir + 1);
