@@ -632,14 +632,22 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
     pUpdate->pFileName = DuplicateString(pFileName);
     pUpdate->bDeleteExisting = bDeleteExistingResources;
 
+    HMODULE hMod = LoadLibraryExW(pFileName, NULL, LOAD_LIBRARY_AS_DATAFILE);
+    if (!hMod) {
+        HeapFree(GetProcessHeap(), 0, pUpdate);
+        return NULL;
+    }
+
     if (!bDeleteExistingResources) {
-        HMODULE hMod = LoadLibraryExW(pFileName, NULL, LOAD_LIBRARY_AS_DATAFILE);
-        if (hMod) {
-            // 既存のリソースをすべて内部リストにロードする
-            WonEnumResourceTypesW(hMod, LoadExistingTypesProc, (LONG_PTR)pUpdate);
-            FreeLibrary(hMod);
+        // 既存のリソースをすべて内部リストにロードする
+        if (!WonEnumResourceTypesW(hMod, LoadExistingTypesProc, (LONG_PTR)pUpdate)) {
+            HeapFree(GetProcessHeap(), 0, pUpdate);
+            return NULL;
         }
     }
+
+    FreeLibrary(hMod);
+
     return (HANDLE)pUpdate;
 }
 

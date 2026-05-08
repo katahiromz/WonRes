@@ -15,13 +15,13 @@ int main(void)
     HANDLE hUpdate = WonBeginUpdateResourceA(szPath, TRUE);
     printf("hUpdate: %p\n", hUpdate);
     char sz[] = "This is a test";
-    BOOL ret;
-    ret = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test1", 0, sz, (DWORD)sizeof(sz));
-    printf("ret: %d\n", ret);
-    ret = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test2", 0, sz, (DWORD)sizeof(sz));
-    printf("ret: %d\n", ret);
-    ret = WonEndUpdateResourceA(hUpdate, FALSE);
-    printf("ret: %d\n", ret);
+    BOOL ret1;
+    ret1 = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test1", 0, sz, (DWORD)sizeof(sz));
+    printf("ret1: %d\n", ret1);
+    ret1 = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test2", 0, sz, (DWORD)sizeof(sz));
+    printf("ret1: %d\n", ret1);
+    ret1 = WonEndUpdateResourceA(hUpdate, FALSE);
+    printf("ret1: %d\n", ret1);
 
     HINSTANCE mod = LoadLibraryExA(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     HRSRC hRsrc = FindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test2", 0);
@@ -34,9 +34,13 @@ int main(void)
     printf("hGlobal: %p\n", hGlobal);
     LPVOID pv = LockResource(hGlobal);
     printf("pv: %p\n", pv);
-    ret = pv && (memcmp(pv, sz, sizeof(sz)) == 0) && size == sizeof(sz);
+    BOOL ret2 = pv && (memcmp(pv, sz, sizeof(sz)) == 0) && size == sizeof(sz);
     FreeLibrary(mod);
-    printf("ret: %d\n", ret);
+    printf("ret2: %d\n", ret2);
 
-    return ret ? 0 : 1;
+    DWORD dw;
+    BOOL ret3 = GetBinaryTypeA(szPath, &dw);
+    printf("ret3: %d\n", ret3);
+
+    return (ret1 && ret2 && ret3) ? 0 : 1;
 }

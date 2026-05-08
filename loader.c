@@ -81,7 +81,7 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage)
 {
     LANGID aLangIds[16];
-    INT iLangId, cLangIds = 0;
+    UINT iLangId, cLangIds;
 
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
     if (!root) {
@@ -105,6 +105,7 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
     }
 
     // Level 3: Language
+    cLangIds = 0;
     aLangIds[cLangIds++] = wLanguage;
     aLangIds[cLangIds++] = MAKELANGID(PRIMARYLANGID(wLanguage), SUBLANG_NEUTRAL);
     aLangIds[cLangIds++] = MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL);
