@@ -233,12 +233,12 @@ BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, 
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(root + 1);
     for (INT i = 0; i < (root->NumberOfNamedEntries + root->NumberOfIdEntries); ++i) {
         LPWSTR type;
+        WCHAR szName[MAX_RES_ID_LEN];
         if (pEntries[i].NameIsString) {
             PIMAGE_RESOURCE_DIR_STRING_U pStr =
                 (PIMAGE_RESOURCE_DIR_STRING_U)(pBase + LDR_NAME_OFFSET(pEntries[i]));
 
             // 本来はNULL終端されていない可能性があるため、バッファにコピーして終端させる必要があります
-            WCHAR szName[MAX_RES_ID_LEN];
             int len = (int)min((size_t)pStr->Length, _countof(szName) - 1);
             memcpy(szName, pStr->NameString, len * sizeof(WCHAR));
             szName[len] = UNICODE_NULL;
