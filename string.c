@@ -24,7 +24,7 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
 
     uID &= 0x000F;
 
-    for (INT i = 0; i < uID; i++)
+    for (UINT i = 0; i < uID; i++)
         p += *p + 1;
 
     if (nBufferMax == 0) {

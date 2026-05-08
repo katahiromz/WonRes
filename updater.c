@@ -39,7 +39,9 @@ static inline LPWSTR DuplicateResId(LPCWSTR pszId)
 {
     if (IS_INTRESOURCE(pszId))
         return (LPWSTR)pszId;
-    return _wcsupr(_wcsdup(pszId));
+    LPWSTR p = _wcsdup(pszId);
+    if (!p) return NULL;
+    return _wcsupr(p);
 }
 
 // ヘルパー：リソースID/名前の解放
@@ -306,7 +308,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 
                 pDataEntry->OffsetToData = offRawData;
                 pDataEntry->Size = pRes->size;
-                pDataEntry->CodePage = 1200;
+                pDataEntry->CodePage = 0;
                 pDataEntry->Reserved = 0;
 
                 memcpy(pNewRsrc + offRawData, pRes->data, pRes->size);
@@ -391,7 +393,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     // VA で見つからない場合はセクション名 ".rsrc" で照合
     if (iOldRsrc < 0) {
         for (WORD i = 0; i < nSections; i++) {
-            if (memcmp(pSections[i].Name, ".rsrc", 5) == 0) {
+            if (memcmp(pSections[i].Name, ".rsrc\0\0\0", IMAGE_SIZEOF_SHORT_NAME) == 0) {
                 iOldRsrc = (int)i;
                 break;
             }
@@ -657,10 +659,24 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
 
         pNew->type = DuplicateResId(lpType);
         pNew->name = DuplicateResId(lpName);
+        if ((!IS_INTRESOURCE(lpType) && !pNew->type) ||
+            (!IS_INTRESOURCE(lpName) && !pNew->name)) {
+            FreeResId(pNew->type);
+            FreeResId(pNew->name);
+            HeapFree(GetProcessHeap(), 0, pNew);
+            return FALSE;
+        }
         pNew->lang = wLanguage;
         pNew->size = cbData;
         pNew->data = HeapAlloc(GetProcessHeap(), 0, cbData);
-        CopyMemory(pNew->data, lpData, cbData);
+        if (!pNew->data) {
+            FreeResId(pNew->type);
+            FreeResId(pNew->name);
+            HeapFree(GetProcessHeap(), 0, pNew);
+            return FALSE;
+        }
+        if (cbData)
+            CopyMemory(pNew->data, lpData, cbData);
 
         // リストの先頭に追加
         pNew->next = pUpdate->pEntries;

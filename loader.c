@@ -231,7 +231,7 @@ BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, 
 
     PBYTE pBase = (PBYTE)root;
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(root + 1);
-    for (WORD i = 0; i < (root->NumberOfNamedEntries + root->NumberOfIdEntries); i++) {
+    for (INT i = 0; i < (root->NumberOfNamedEntries + root->NumberOfIdEntries); ++i) {
         LPWSTR type;
         if (pEntries[i].NameIsString) {
             PIMAGE_RESOURCE_DIR_STRING_U pStr =
@@ -249,7 +249,7 @@ BOOL WONAPI WonEnumResourceTypesW(HMODULE hModule, ENUMRESTYPEPROCW lpEnumFunc, 
         }
 
         if (!lpEnumFunc(hModule, type, lParam))
-            break;
+            return FALSE;
     }
     return TRUE;
 }
