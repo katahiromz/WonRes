@@ -15,7 +15,7 @@ BOOL WONAPI WonEnumResourceLanguages(
     ENUMRESLANGPROC lpEnumFunc,
     LONG_PTR lParam);
 
-HRSRC WONAPI WonFindResource(HMODULE hModule, LPCTSTR lpType, LPCWSTR lpName);
+HRSRC WONAPI WonFindResource(HMODULE hModule, LPCTSTR lpType, LPCTSTR lpName);
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCTSTR lpType, LPCTSTR lpName, WORD wLanguage);
 
 DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc);
