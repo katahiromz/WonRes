@@ -526,6 +526,16 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         pNt32->OptionalHeader.CheckSum = 0;
     }
 
+    // チェックサムを計算して設定
+    DWORD dwHeaderSum, dwCheckSum;
+    if (CheckSumMappedFile(pNewFile, cbNewFile, &dwHeaderSum, &dwCheckSum)) {
+        if (b64) {
+            ((PIMAGE_NT_HEADERS64)pNt)->OptionalHeader.CheckSum = dwCheckSum;
+        } else {
+            ((PIMAGE_NT_HEADERS32)pNt)->OptionalHeader.CheckSum = dwCheckSum;
+        }
+    }
+
     // write file
     SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
     {
