@@ -60,15 +60,22 @@ static inline BOOL MatchResId(LPCWSTR id1, LPCWSTR id2)
 
 static int CompareResIdForDirectory(LPCWSTR a, LPCWSTR b)
 {
-    if (IsNamedId(a)) {
-        if (IsNamedId(b))
-            return _wcsicmp(a, b); // 文字列同士は大文字小文字無視
-        return -1;                 // aは名前、bはID -> 名前が先
-    }
-    if (IsNamedId(b))
-        return 1; // aはID、bは名前 -> 名前が先
+    // 1. 文字列ID（Named）と数値ID（Integer）の比較
+    if (IsNamedId(a) && !IsNamedId(b))
+        return -1; // 名前が先
+    if (!IsNamedId(a) && IsNamedId(b))
+        return 1;  // IDが後
 
-    return (PtrToUshort(a) < PtrToUshort(b)) ? -1 : (PtrToUshort(a) > PtrToUshort(b));
+    // 2. 両方が文字列IDの場合
+    if (IsNamedId(a) && IsNamedId(b))
+        return _wcsicmp(a, b);
+
+    // 3. 両方が数値IDの場合
+    WORD idA = PtrToUshort(a);
+    WORD idB = PtrToUshort(b);
+    if (idA < idB) return -1;
+    if (idA > idB) return 1;
+    return 0;
 }
 
 static int CompareResEntry(const void *pa, const void *pb)
@@ -226,7 +233,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
             WORD cch = (WORD)wcslen(ppSorted[iType]->type);
             pTypeEntry->NameOffset = offString;
             pTypeEntry->NameIsString = TRUE;
-            *(WORD *)(pNewRsrc + offString) = cch;
+            *(PWORD)(pNewRsrc + offString) = cch;
             memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[iType]->type, cch * sizeof(WCHAR));
             offString += sizeof(WORD) + cch * sizeof(WCHAR);
             offString = ALIGN_UP(offString, 4);
@@ -256,12 +263,13 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
                 sizeof(IMAGE_RESOURCE_DIRECTORY) + cLangs * sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY);
 
             PIMAGE_RESOURCE_DIRECTORY_ENTRY pNameEntry = &pTypeEntries[iTypeEntry++];
+            ZeroMemory(pNameEntry, sizeof(IMAGE_RESOURCE_DIRECTORY_ENTRY));
 
             if (IsNamedId(ppSorted[jName]->name)) {
                 WORD cch = (WORD)wcslen(ppSorted[jName]->name);
                 pNameEntry->NameOffset = offString;
                 pNameEntry->NameIsString = TRUE;
-                *(WORD *)(pNewRsrc + offString) = cch;
+                *(PWORD)(pNewRsrc + offString) = cch;
                 memcpy(pNewRsrc + offString + sizeof(WORD), ppSorted[jName]->name,
                        cch * sizeof(WCHAR));
                 offString += sizeof(WORD) + cch * sizeof(WCHAR);
