@@ -48,7 +48,7 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
 
 INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax)
 {
-    if (!nBufferMax)
+    if (nBufferMax <= 0)
         return -1;
 
     INT retval = 0;
