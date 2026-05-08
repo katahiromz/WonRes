@@ -64,7 +64,7 @@ static int CompareResIdForDirectory(LPCWSTR a, LPCWSTR b)
     if (IsNamedId(a) && !IsNamedId(b))
         return -1; // 名前が先
     if (!IsNamedId(a) && IsNamedId(b))
-        return 1;  // IDが後
+        return 1; // IDが後
 
     // 2. 両方が文字列IDの場合
     if (IsNamedId(a) && IsNamedId(b))
@@ -73,8 +73,10 @@ static int CompareResIdForDirectory(LPCWSTR a, LPCWSTR b)
     // 3. 両方が数値IDの場合
     WORD idA = PtrToUshort(a);
     WORD idB = PtrToUshort(b);
-    if (idA < idB) return -1;
-    if (idA > idB) return 1;
+    if (idA < idB)
+        return -1;
+    if (idA > idB)
+        return 1;
     return 0;
 }
 
@@ -646,7 +648,7 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
     }
 
     // lpData が NULL でない場合は新規追加・更新
-    if (lpData != NULL) {
+    if (lpData) {
         PWON_RES_ENTRY pNew =
             (PWON_RES_ENTRY)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(WON_RES_ENTRY));
         if (!pNew)
