@@ -27,7 +27,7 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
     for (UINT i = 0; i < uID; i++)
         p += *p + 1;
 
-    if (nBufferMax == 0) {
+    if (nBufferMax == 0) { // Special case: Return a pointer to (LPWSTR *)lpBuffer
         *((LPWSTR *)lpBuffer) = p + 1;
         return *p;
     }

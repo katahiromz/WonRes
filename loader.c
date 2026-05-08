@@ -11,7 +11,7 @@
 // 実行モジュール・読み込みモジュールについてx86/x64両方に対応して下さい。
 // x86からx64の読み込み、x64からx86の読み込みにも対応してください。
 
-#define LDR_IS_DATAFILE(h)       (((ULONG_PTR)(h) & 3) == 1)  // bit0のみ
+#define LDR_IS_DATAFILE(h) (((ULONG_PTR)(h) & 3) == 1) // bit0のみ
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
 #define LDR_DIR_OFFSET(e) ((e).OffsetToDirectory & 0x7FFFFFFF)
 #define LDR_DATA_OFFSET(e) ((e).OffsetToData & 0x7FFFFFFF)
@@ -161,12 +161,12 @@ HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, W
     return WonFindResourceExW(hModule, pszTypeW, pszNameW, wLanguage);
 }
 
-HRSRC WONAPI WonFindResourceA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName)
+HRSRC WONAPI WonFindResourceA(HMODULE hModule, LPCSTR lpName, LPCSTR lpType)
 {
     return WonFindResourceExA(hModule, lpType, lpName, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
 }
 
-HRSRC WONAPI WonFindResourceW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName)
+HRSRC WONAPI WonFindResourceW(HMODULE hModule, LPCWSTR lpName, LPCWSTR lpType)
 {
     return WonFindResourceExW(hModule, lpType, lpName, MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
 }
@@ -193,8 +193,12 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
         return NULL;
 
     PBYTE pBase = LDR_TO_BASE(hModule);
+    PBYTE pRoot = (PBYTE)GetResourceRoot(hModule);
+    if (!pRoot)
+        return NULL;
+
     PIMAGE_RESOURCE_DATA_ENTRY pData =
-        (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
+        (PIMAGE_RESOURCE_DATA_ENTRY)(pRoot +
                                      LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
     if (LDR_IS_DATAFILE(hModule)) {
         // LOAD_LIBRARY_AS_DATAFILE

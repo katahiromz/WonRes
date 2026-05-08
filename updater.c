@@ -40,7 +40,8 @@ static inline LPWSTR DuplicateResId(LPCWSTR pszId)
     if (IS_INTRESOURCE(pszId))
         return (LPWSTR)pszId;
     LPWSTR p = _wcsdup(pszId);
-    if (!p) return NULL;
+    if (!p)
+        return NULL;
     return _wcsupr(p);
 }
 
@@ -659,8 +660,7 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
 
         pNew->type = DuplicateResId(lpType);
         pNew->name = DuplicateResId(lpName);
-        if ((!IS_INTRESOURCE(lpType) && !pNew->type) ||
-            (!IS_INTRESOURCE(lpName) && !pNew->name)) {
+        if ((!IS_INTRESOURCE(lpType) && !pNew->type) || (!IS_INTRESOURCE(lpName) && !pNew->name)) {
             FreeResId(pNew->type);
             FreeResId(pNew->name);
             HeapFree(GetProcessHeap(), 0, pNew);
