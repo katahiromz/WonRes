@@ -11,9 +11,8 @@
 // 実行モジュール・読み込みモジュールについてx86/x64両方に対応して下さい。
 // x86からx64の読み込み、x64からx86の読み込みにも対応してください。
 
-#define LDR_IS_RESOURCE_HANDLE(h) (((ULONG_PTR)(h) & 3) != 0)
+#define LDR_IS_DATAFILE(h)       (((ULONG_PTR)(h) & 3) == 1)  // bit0のみ
 #define LDR_TO_BASE(h) ((PBYTE)((ULONG_PTR)(h) & ~3))
-
 #define LDR_DIR_OFFSET(e) ((e).OffsetToDirectory & 0x7FFFFFFF)
 #define LDR_DATA_OFFSET(e) ((e).OffsetToData & 0x7FFFFFFF)
 #define LDR_NAME_OFFSET(e) ((e).NameOffset & 0x7FFFFFFF)
@@ -22,7 +21,7 @@
 static PIMAGE_RESOURCE_DIRECTORY GetResourceRoot(HMODULE hModule)
 {
     ULONG size;
-    BOOL MappedAsImage = !LDR_IS_RESOURCE_HANDLE(hModule);
+    BOOL MappedAsImage = !LDR_IS_DATAFILE(hModule);
     return (PIMAGE_RESOURCE_DIRECTORY)ImageDirectoryEntryToData(
         LDR_TO_BASE(hModule), MappedAsImage, IMAGE_DIRECTORY_ENTRY_RESOURCE, &size);
 }
@@ -197,8 +196,7 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
     PIMAGE_RESOURCE_DATA_ENTRY pData =
         (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
                                      LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
-
-    if (LDR_IS_RESOURCE_HANDLE(hModule)) {
+    if (LDR_IS_DATAFILE(hModule)) {
         // LOAD_LIBRARY_AS_DATAFILE
         // の場合、RVAをファイルオフセットベースのVAに変換
         PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)ImageNtHeader(pBase);
