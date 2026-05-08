@@ -9,11 +9,11 @@ extern "C" {
 #endif
 
 #ifndef WONAPI
-    #define WONAPI WINAPI
+#define WONAPI WINAPI
 #endif
 
 #ifndef MAX_RES_ID_LEN
-    #define MAX_RES_ID_LEN 256
+#define MAX_RES_ID_LEN 256
 #endif
 
 BOOL WONAPI WonEnumResourceTypesA(HMODULE hModule, ENUMRESTYPEPROCA lpEnumFunc, LONG_PTR lParam);
@@ -24,19 +24,11 @@ BOOL WONAPI WonEnumResourceNamesA(HMODULE hModule, LPCSTR lpType, ENUMRESNAMEPRO
 BOOL WONAPI WonEnumResourceNamesW(HMODULE hModule, LPCWSTR lpType, ENUMRESNAMEPROCW lpEnumFunc,
                                   LONG_PTR lParam);
 
-BOOL WONAPI WonEnumResourceLanguagesA(
-    HMODULE hModule,
-    LPCSTR lpType,
-    LPCSTR lpName,
-    ENUMRESLANGPROCA lpEnumFunc,
-    LONG_PTR lParam);
+BOOL WONAPI WonEnumResourceLanguagesA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName,
+                                      ENUMRESLANGPROCA lpEnumFunc, LONG_PTR lParam);
 
-BOOL WONAPI WonEnumResourceLanguagesW(
-    HMODULE hModule,
-    LPCWSTR lpType,
-    LPCWSTR lpName,
-    ENUMRESLANGPROCW lpEnumFunc,
-    LONG_PTR lParam);
+BOOL WONAPI WonEnumResourceLanguagesW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
+                                      ENUMRESLANGPROCW lpEnumFunc, LONG_PTR lParam);
 
 HRSRC WONAPI WonFindResourceA(HMODULE hModule, LPCSTR lpName, LPCSTR lpType);
 HRSRC WONAPI WonFindResourceW(HMODULE hModule, LPCWSTR lpName, LPCWSTR lpType);
@@ -53,44 +45,34 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
 BOOL WONAPI WonEndUpdateResourceA(HANDLE hUpdate, BOOL fDiscard);
 BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard);
 
-BOOL WONAPI WonUpdateResourceA(
-    HANDLE hUpdate,
-    LPCSTR lpType,
-    LPCSTR lpName,
-    WORD wLanguage,
-    LPVOID lpData,
-    DWORD cbData);
-BOOL WONAPI WonUpdateResourceW(
-    HANDLE hUpdate,
-    LPCWSTR lpType,
-    LPCWSTR lpName,
-    WORD wLanguage,
-    LPVOID lpData,
-    DWORD cbData);
+BOOL WONAPI WonUpdateResourceA(HANDLE hUpdate, LPCSTR lpType, LPCSTR lpName, WORD wLanguage,
+                               LPVOID lpData, DWORD cbData);
+BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage,
+                               LPVOID lpData, DWORD cbData);
 
 INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax);
 INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax);
 
 #ifdef UNICODE
-    #define WonEnumResourceTypes WonEnumResourceTypesW
-    #define WonEnumResourceNames WonEnumResourceNamesW
-    #define WonEnumResourceLanguages WonEnumResourceLanguagesW
-    #define WonFindResource WonFindResourceW
-    #define WonFindResourceEx WonFindResourceExW
-    #define WonBeginUpdateResource WonBeginUpdateResourceW
-    #define WonUpdateResource WonUpdateResourceW
-    #define WonEndUpdateResource WonEndUpdateResourceW
-    #define WonLoadString WonLoadStringW
+#define WonEnumResourceTypes WonEnumResourceTypesW
+#define WonEnumResourceNames WonEnumResourceNamesW
+#define WonEnumResourceLanguages WonEnumResourceLanguagesW
+#define WonFindResource WonFindResourceW
+#define WonFindResourceEx WonFindResourceExW
+#define WonBeginUpdateResource WonBeginUpdateResourceW
+#define WonUpdateResource WonUpdateResourceW
+#define WonEndUpdateResource WonEndUpdateResourceW
+#define WonLoadString WonLoadStringW
 #else
-    #define WonEnumResourceTypes WonEnumResourceTypesA
-    #define WonEnumResourceNames WonEnumResourceNamesA
-    #define WonEnumResourceLanguages WonEnumResourceLanguagesA
-    #define WonFindResource WonFindResourceA
-    #define WonFindResourceEx WonFindResourceExA
-    #define WonBeginUpdateResource WonBeginUpdateResourceA
-    #define WonUpdateResource WonUpdateResourceA
-    #define WonEndUpdateResource WonEndUpdateResourceA
-    #define WonLoadString WonLoadStringA
+#define WonEnumResourceTypes WonEnumResourceTypesA
+#define WonEnumResourceNames WonEnumResourceNamesA
+#define WonEnumResourceLanguages WonEnumResourceLanguagesA
+#define WonFindResource WonFindResourceA
+#define WonFindResourceEx WonFindResourceExA
+#define WonBeginUpdateResource WonBeginUpdateResourceA
+#define WonUpdateResource WonUpdateResourceA
+#define WonEndUpdateResource WonEndUpdateResourceA
+#define WonLoadString WonLoadStringA
 #endif
 
 #ifdef __cplusplus

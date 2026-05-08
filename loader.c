@@ -178,8 +178,13 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
 {
     if (!hrsrc)
         return 0;
+
+    PBYTE pRoot = (PBYTE)GetResourceRoot(hModule);
+    if (!pRoot)
+        return 0;
+
     PIMAGE_RESOURCE_DATA_ENTRY pData =
-        (PIMAGE_RESOURCE_DATA_ENTRY)((PBYTE)GetResourceRoot(hModule) +
+        (PIMAGE_RESOURCE_DATA_ENTRY)(pRoot +
                                      LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
     return pData->Size;
 }

@@ -34,22 +34,35 @@ typedef struct WON_UPDATE_DATA {
 // ヘルパー：IDが文字列かどうかを判定
 static inline BOOL IsNamedId(LPCWSTR id) { return !IS_INTRESOURCE(id); }
 
+static inline LPWSTR DuplicateString(LPCWSTR psz)
+{
+    if (!psz)
+        return NULL;
+    size_t cch = lstrlenW(psz);
+    size_t cb = (cch + 1) * sizeof(WCHAR);
+    LPWSTR pszNew = HeapAlloc(GetProcessHeap(), 0, cb);
+    if (!pszNew)
+        return NULL;
+    CopyMemory(pszNew, psz, cb);
+    return pszNew;
+}
+
 // ヘルパー：リソースID/名前の複製
 static inline LPWSTR DuplicateResId(LPCWSTR pszId)
 {
     if (IS_INTRESOURCE(pszId))
         return (LPWSTR)pszId;
-    LPWSTR p = _wcsdup(pszId);
-    if (!p)
+    LPWSTR psz = DuplicateString(pszId);
+    if (!psz)
         return NULL;
-    return _wcsupr(p);
+    return _wcsupr(psz);
 }
 
 // ヘルパー：リソースID/名前の解放
 static inline void FreeResId(LPWSTR pszId)
 {
     if (!IS_INTRESOURCE(pszId))
-        free(pszId);
+        HeapFree(GetProcessHeap(), 0, pszId);
 }
 
 // リソースIDが一致するか？
@@ -186,16 +199,16 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     DWORD cbTotal = offData;
 
     for (DWORD i = 0; i < count; ++i)
-        cbTotal += ALIGN_UP(ppSorted[i]->size, 8);
+        cbTotal += ALIGN_UP(ppSorted[i]->size, 4);
 
     // allocate resource section buffer
     pNewRsrc = (PBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbTotal);
     if (!pNewRsrc)
         goto cleanup;
 
+    size_t cbDataEntriesBuf = sizeof(PIMAGE_RESOURCE_DATA_ENTRY) * (count ? count : 1);
     ppDataEntries = (PIMAGE_RESOURCE_DATA_ENTRY *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
-                                                            sizeof(PIMAGE_RESOURCE_DATA_ENTRY *) *
-                                                                (count ? count : 1));
+                                                            cbDataEntriesBuf);
     if (!ppDataEntries)
         goto cleanup;
 
@@ -585,9 +598,9 @@ static BOOL CALLBACK LoadExistingResProc(HMODULE hMod, LPCWSTR lpType, LPCWSTR l
         DWORD size = WonSizeofResource(hMod, hRes);
         HGLOBAL hGlobal = WonLoadResource(hMod, hRes);
         LPVOID pData = WonLockResource(hGlobal);
-        if (pData) {
-            WonUpdateResourceW(hUpdate, lpType, lpName, wLang, pData, size);
-        }
+        if (!pData)
+            return FALSE;
+        return WonUpdateResourceW(hUpdate, lpType, lpName, wLang, pData, size);
     }
     return TRUE;
 }
@@ -610,7 +623,13 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
     if (!pUpdate)
         return NULL;
 
-    pUpdate->pFileName = _wcsdup(pFileName);
+    if (!pFileName || !pFileName[0])
+    {
+        HeapFree(GetProcessHeap(), 0, pUpdate);
+        return NULL;
+    }
+
+    pUpdate->pFileName = DuplicateString(pFileName);
     pUpdate->bDeleteExisting = bDeleteExistingResources;
 
     if (!bDeleteExistingResources) {
@@ -668,15 +687,16 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
         }
         pNew->lang = wLanguage;
         pNew->size = cbData;
-        pNew->data = HeapAlloc(GetProcessHeap(), 0, cbData);
-        if (!pNew->data) {
-            FreeResId(pNew->type);
-            FreeResId(pNew->name);
-            HeapFree(GetProcessHeap(), 0, pNew);
-            return FALSE;
-        }
-        if (cbData)
+        if (cbData) {
+            pNew->data = HeapAlloc(GetProcessHeap(), 0, cbData);
+            if (!pNew->data) {
+                FreeResId(pNew->type);
+                FreeResId(pNew->name);
+                HeapFree(GetProcessHeap(), 0, pNew);
+                return FALSE;
+            }
             CopyMemory(pNew->data, lpData, cbData);
+        }
 
         // リストの先頭に追加
         pNew->next = pUpdate->pEntries;
@@ -707,7 +727,7 @@ BOOL WONAPI WonEndUpdateResourceW(HANDLE hUpdate, BOOL fDiscard)
         HeapFree(GetProcessHeap(), 0, pCurr);
         pCurr = pNext;
     }
-    free(pUpdate->pFileName);
+    HeapFree(GetProcessHeap(), 0, pUpdate->pFileName);
     HeapFree(GetProcessHeap(), 0, pUpdate);
     return ret;
 }
