@@ -35,6 +35,14 @@ target_link_libraries(test-UpdA PRIVATE WonRes)
 add_executable(test-UpdW test-UpdW.c)
 target_link_libraries(test-UpdW PRIVATE WonRes)
 
+# test-StrA.exe
+add_executable(test-StrA test-StrA.c test-Str_res.rc)
+target_link_libraries(test-StrA PRIVATE WonRes)
+
+# test-StrW.exe
+add_executable(test-StrW test-StrW.c test-Str_res.rc)
+target_link_libraries(test-StrW PRIVATE WonRes)
+
 # tests
 add_test(NAME Types COMMAND test-Types WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME Names COMMAND test-Names WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
@@ -45,3 +53,5 @@ add_test(NAME FindA COMMAND test-FindA shell32.dll WORKING_DIRECTORY "${CMAKE_CU
 add_test(NAME FindW COMMAND test-FindW shell32.dll WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME UpdateA COMMAND test-UpdA WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME UpdateW COMMAND test-UpdW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+add_test(NAME StrA COMMAND test-StrA WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+add_test(NAME StrW COMMAND test-StrW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")

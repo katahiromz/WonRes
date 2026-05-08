@@ -68,6 +68,9 @@ BOOL WONAPI WonUpdateResourceW(
     LPVOID lpData,
     DWORD cbData);
 
+int WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, int nBufferMax);
+int WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, int nBufferMax);
+
 #ifdef UNICODE
     #define WonEnumResourceTypes WonEnumResourceTypesW
     #define WonEnumResourceNames WonEnumResourceNamesW
@@ -77,6 +80,7 @@ BOOL WONAPI WonUpdateResourceW(
     #define WonBeginUpdateResource WonBeginUpdateResourceW
     #define WonUpdateResource WonUpdateResourceW
     #define WonEndUpdateResource WonEndUpdateResourceW
+    #define WonLoadString WonLoadStringW
 #else
     #define WonEnumResourceTypes WonEnumResourceTypesA
     #define WonEnumResourceNames WonEnumResourceNamesA
@@ -86,6 +90,7 @@ BOOL WONAPI WonUpdateResourceW(
     #define WonBeginUpdateResource WonBeginUpdateResourceA
     #define WonUpdateResource WonUpdateResourceA
     #define WonEndUpdateResource WonEndUpdateResourceA
+    #define WonLoadString WonLoadStringA
 #endif
 
 #ifdef __cplusplus

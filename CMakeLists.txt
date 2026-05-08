@@ -14,7 +14,7 @@ project(WonRes C RC)
 add_definitions(-DUNICODE -D_UNICODE)
 
 # libWonRes.a
-add_library(WonRes STATIC loader.c updater.c)
+add_library(WonRes STATIC loader.c string.c updater.c)
 target_include_directories(WonRes INTERFACE .)
 target_link_libraries(WonRes PRIVATE imagehlp)
 
