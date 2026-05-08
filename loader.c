@@ -3,6 +3,7 @@
 // License: MIT
 #include <windows.h>
 #include <imagehlp.h>
+#include <assert.h>
 #include "WonRes.h"
 
 // Script:
@@ -80,6 +81,9 @@ static PIMAGE_RESOURCE_DIRECTORY_ENTRY FindEntry(PIMAGE_RESOURCE_DIRECTORY pRoot
 
 HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName, WORD wLanguage)
 {
+    LANGID aLangIds[16];
+    INT iLangId, cLangIds = 0;
+
     PIMAGE_RESOURCE_DIRECTORY root = GetResourceRoot(hModule);
     if (!root) {
         SetLastError(ERROR_RESOURCE_DATA_NOT_FOUND);
@@ -102,14 +106,33 @@ HRSRC WONAPI WonFindResourceExW(HMODULE hModule, LPCWSTR lpType, LPCWSTR lpName,
     }
 
     // Level 3: Language
+    aLangIds[cLangIds++] = wLanguage;
+    aLangIds[cLangIds++] = MAKELANGID(PRIMARYLANGID(wLanguage), SUBLANG_NEUTRAL);
+    aLangIds[cLangIds++] = MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL);
+    if (PRIMARYLANGID(wLanguage) == LANG_NEUTRAL) {
+        LANGID wUserLangId = GetUserDefaultLangID();
+        LANGID wSysLangId = GetSystemDefaultLangID();
+        if (SUBLANGID(wLanguage) != SUBLANG_SYS_DEFAULT) {
+            aLangIds[cLangIds++] = LANGIDFROMLCID(GetThreadLocale());
+            aLangIds[cLangIds++] = wUserLangId;
+            aLangIds[cLangIds++] = MAKELANGID(PRIMARYLANGID(wUserLangId), SUBLANG_NEUTRAL);
+        }
+        aLangIds[cLangIds++] = wSysLangId;
+        aLangIds[cLangIds++] = MAKELANGID(PRIMARYLANGID(wSysLangId), SUBLANG_NEUTRAL);
+        aLangIds[cLangIds++] = MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT);
+    }
+    assert(cLangIds < _countof(aLangIds));
+
     dir = (PIMAGE_RESOURCE_DIRECTORY)((PBYTE)root + LDR_DIR_OFFSET(*e));
-    e = FindEntry(root, dir, (LPCWSTR)(ULONG_PTR)wLanguage);
-    if (!e) {
-        SetLastError(ERROR_RESOURCE_LANG_NOT_FOUND);
-        return NULL;
+    for (iLangId = 0; iLangId < cLangIds; ++iLangId) {
+        e = FindEntry(root, dir, (LPCWSTR)UlongToPtr(aLangIds[iLangId]));
+        if (e) return (HRSRC)(ULONG_PTR)e;
     }
 
-    return (HRSRC)(ULONG_PTR)e;
+    PIMAGE_RESOURCE_DIRECTORY_ENTRY pEntries = (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(dir + 1);
+    if (dir->NumberOfIdEntries == 0)
+        return NULL;
+    return (HRSRC)(ULONG_PTR)&pEntries[0];
 }
 
 HRSRC WONAPI WonFindResourceExA(HMODULE hModule, LPCSTR lpType, LPCSTR lpName, WORD wLanguage)

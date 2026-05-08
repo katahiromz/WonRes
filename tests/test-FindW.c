@@ -10,7 +10,7 @@ int main(void)
 
     HINSTANCE mod = LoadLibraryExW(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
     printf("mod: %p\n", mod);
-    HRSRC hRsrc = WonFindResourceExW(mod, (LPCWSTR)RT_MENU, MAKEINTRESOURCEW(1), MAKELANGID(LANG_JAPANESE, SUBLANG_DEFAULT));
+    HRSRC hRsrc = WonFindResourceExW(mod, (LPCWSTR)RT_MENU, MAKEINTRESOURCEW(1), 0);
     printf("hRsrc: %p\n", hRsrc);
     DWORD size = WonSizeofResource(mod, hRsrc);
     printf("size: %ld\n", size);
