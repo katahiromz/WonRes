@@ -205,7 +205,10 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pRootEntries =
         (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNewRsrc + sizeof(IMAGE_RESOURCE_DIRECTORY));
 
+    pRoot->MajorVersion = 4;
+    pRoot->MinorVersion = 0;
     pRoot->TimeDateStamp = (DWORD)time(NULL);
+    pRoot->Characteristics = 0;
 
     DWORD iRootEntry = 0, iDataEntry = 0;
 
@@ -303,7 +306,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
 
                 pDataEntry->OffsetToData = offRawData;
                 pDataEntry->Size = pRes->size;
-                pDataEntry->CodePage = 0;
+                pDataEntry->CodePage = 1200;
                 pDataEntry->Reserved = 0;
 
                 memcpy(pNewRsrc + offRawData, pRes->data, pRes->size);
