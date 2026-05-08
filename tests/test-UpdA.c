@@ -16,13 +16,15 @@ int main(void)
     printf("hUpdate: %p\n", hUpdate);
     char sz[] = "This is a test";
     BOOL ret;
-    ret = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test", 0, sz, (DWORD)sizeof(sz));
+    ret = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test1", 0, sz, (DWORD)sizeof(sz));
+    printf("ret: %d\n", ret);
+    ret = WonUpdateResourceA(hUpdate, (LPSTR)RT_RCDATA, "Test2", 0, sz, (DWORD)sizeof(sz));
     printf("ret: %d\n", ret);
     ret = WonEndUpdateResourceA(hUpdate, FALSE);
     printf("ret: %d\n", ret);
 
     HINSTANCE mod = LoadLibraryExA(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    HRSRC hRsrc = FindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test", 0);
+    HRSRC hRsrc = FindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test2", 0);
     DWORD err = GetLastError();
     printf("hRsrc: %p\n", hRsrc);
     printf("err: %ld\n", err);

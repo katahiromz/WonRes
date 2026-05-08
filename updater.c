@@ -207,8 +207,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     PIMAGE_RESOURCE_DIRECTORY_ENTRY pRootEntries =
         (PIMAGE_RESOURCE_DIRECTORY_ENTRY)(pNewRsrc + sizeof(IMAGE_RESOURCE_DIRECTORY));
 
-    DWORD iRootEntry = 0;
-    DWORD iDataEntry = 0;
+    DWORD iRootEntry = 0, iDataEntry = 0;
 
     for (DWORD i = 0; i < count;) {
         DWORD iType = i;

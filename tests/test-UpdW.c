@@ -15,13 +15,15 @@ int main(void)
     printf("hUpdate: %p\n", hUpdate);
     char sz[] = "This is a test";
     BOOL ret;
-    ret = WonUpdateResourceW(hUpdate, (LPWSTR)RT_RCDATA, L"Test", 0, sz, (DWORD)sizeof(sz));
+    ret = WonUpdateResourceW(hUpdate, (LPWSTR)RT_RCDATA, L"Test1", 0, sz, (DWORD)sizeof(sz));
+    printf("ret: %d\n", ret);
+    ret = WonUpdateResourceW(hUpdate, (LPWSTR)RT_RCDATA, L"Test2", 0, sz, (DWORD)sizeof(sz));
     printf("ret: %d\n", ret);
     ret = WonEndUpdateResourceW(hUpdate, FALSE);
     printf("ret: %d\n", ret);
 
     HINSTANCE mod = LoadLibraryExW(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    HRSRC hRsrc = FindResourceExW(mod, (LPCWSTR)RT_RCDATA, L"Test", 0);
+    HRSRC hRsrc = FindResourceExW(mod, (LPCWSTR)RT_RCDATA, L"Test2", 0);
     DWORD err = GetLastError();
     printf("hRsrc: %p\n", hRsrc);
     printf("err: %ld\n", err);
