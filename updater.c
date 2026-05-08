@@ -23,19 +23,12 @@ typedef struct WON_RES_ENTRY {
     struct WON_RES_ENTRY *next;
 } WON_RES_ENTRY, *PWON_RES_ENTRY;
 
+// リソース更新用の構造体
 typedef struct WON_UPDATE_DATA {
     LPWSTR pFileName;
     BOOL bDeleteExisting;
     PWON_RES_ENTRY pEntries;
 } WON_UPDATE_DATA, *PWON_UPDATE_DATA;
-
-// リソースツリー構築用の補助構造体
-#include <pshpack2.h>
-typedef struct WON_RELOC_ENTRY {
-    WORD offset;
-    WORD type;
-} WON_RELOC_ENTRY, *PWON_RELOC_ENTRY;
-#include <poppack.h>
 
 // ヘルパー：IDが文字列かどうかを判定
 static inline BOOL IsNamedId(LPCWSTR id) { return !IS_INTRESOURCE(id); }
@@ -101,12 +94,8 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     BOOL bSuccess = FALSE;
     HANDLE hFile = INVALID_HANDLE_VALUE;
 
-    BYTE *pOldFile = NULL;
-    BYTE *pNewFile = NULL;
-    BYTE *pNewRsrc = NULL;
-
-    DWORD cbOldFile = 0;
-    DWORD cbNewFile = 0;
+    PBYTE pOldFile = NULL, pNewFile = NULL, pNewRsrc = NULL;
+    DWORD cbOldFile = 0, cbNewFile = 0;
 
     PWON_RES_ENTRY *ppSorted = NULL;
     PIMAGE_RESOURCE_DATA_ENTRY *ppDataEntries = NULL;
@@ -186,7 +175,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         cbTotal += ALIGN_UP(ppSorted[i]->size, 8);
 
     // allocate resource section buffer
-    pNewRsrc = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbTotal);
+    pNewRsrc = (PBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbTotal);
     if (!pNewRsrc)
         goto cleanup;
 
@@ -252,7 +241,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         ZeroMemory(pTypeDir, sizeof(IMAGE_RESOURCE_DIRECTORY));
 
         PIMAGE_RESOURCE_DIRECTORY_ENTRY pTypeEntries =
-            (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((BYTE *)pTypeDir + sizeof(IMAGE_RESOURCE_DIRECTORY));
+            (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((PBYTE)pTypeDir + sizeof(IMAGE_RESOURCE_DIRECTORY));
 
         DWORD iTypeEntry = 0;
         for (DWORD j = iType; j < i;) {
@@ -290,7 +279,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
             ZeroMemory(pLangDir, sizeof(IMAGE_RESOURCE_DIRECTORY));
 
             PIMAGE_RESOURCE_DIRECTORY_ENTRY pLangEntries =
-                (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((BYTE *)pLangDir +
+                (PIMAGE_RESOURCE_DIRECTORY_ENTRY)((PBYTE)pLangDir +
                                                   sizeof(IMAGE_RESOURCE_DIRECTORY));
 
             for (DWORD k = 0; k < cLangs; ++k) {
@@ -328,7 +317,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     if (cbOldFile == INVALID_FILE_SIZE || cbOldFile == 0)
         goto cleanup;
 
-    pOldFile = (BYTE *)HeapAlloc(GetProcessHeap(), 0, cbOldFile);
+    pOldFile = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbOldFile);
     if (!pOldFile)
         goto cleanup;
 
@@ -450,7 +439,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     DWORD cbRaw = ALIGN_UP(cbTotal, fileAlign);
     cbNewFile   = newRaw + cbRaw;
 
-    pNewFile = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbNewFile);
+    pNewFile = (PBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbNewFile);
     if (!pNewFile)
         goto cleanup;
 
@@ -478,7 +467,7 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         pRsrcSec = &pSections[iOldRsrc];
     } else {
         // 新規追加：ヘッダ領域に空きがあるか確認
-        BYTE *pSecEnd = (BYTE *)&pSections[nSections + 1];
+        PBYTE pSecEnd = (PBYTE)&pSections[nSections + 1];
         DWORD cbHeaders = b64
             ? ((PIMAGE_NT_HEADERS64)pNt)->OptionalHeader.SizeOfHeaders
             : ((PIMAGE_NT_HEADERS32)pNt)->OptionalHeader.SizeOfHeaders;
