@@ -38,7 +38,7 @@ static inline LPWSTR DuplicateResId(LPCWSTR pszId)
 {
     if (IS_INTRESOURCE(pszId))
         return (LPWSTR)pszId;
-    return _wcsdup(pszId);
+    return _wcsupr(_wcsdup(pszId));
 }
 
 // ヘルパー：リソースID/名前の解放

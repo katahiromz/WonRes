@@ -22,7 +22,7 @@ int main(void)
     printf("ret: %d\n", ret);
 
     HINSTANCE mod = LoadLibraryExA(szPath, NULL, LOAD_LIBRARY_AS_DATAFILE);
-    HRSRC hRsrc = WonFindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test", 0);
+    HRSRC hRsrc = FindResourceExA(mod, (LPCSTR)RT_RCDATA, "Test", 0);
     DWORD err = GetLastError();
     printf("hRsrc: %p\n", hRsrc);
     printf("err: %ld\n", err);
