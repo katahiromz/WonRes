@@ -19,6 +19,14 @@ target_link_libraries(test-AllA PRIVATE WonRes)
 add_executable(test-AllW test-AllW.c)
 target_link_libraries(test-AllW PRIVATE WonRes)
 
+# test-FindA.exe
+add_executable(test-FindA test-FindA.c test-Find_res.rc)
+target_link_libraries(test-FindA PRIVATE WonRes)
+
+# test-FindW.exe
+add_executable(test-FindW test-FindW.c test-Find_res.rc)
+target_link_libraries(test-FindW PRIVATE WonRes)
+
 # test-UpdA.exe
 add_executable(test-UpdA test-UpdA.c)
 target_link_libraries(test-UpdA PRIVATE WonRes)
@@ -33,5 +41,7 @@ add_test(NAME Names COMMAND test-Names WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY
 add_test(NAME Langs COMMAND test-Langs WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME AllA COMMAND test-AllA shell32.dll WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME AllW COMMAND test-AllW shell32.dll WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+add_test(NAME FindA COMMAND test-FindA shell32.dll WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+add_test(NAME FindW COMMAND test-FindW shell32.dll WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME UpdateA COMMAND test-UpdA WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME UpdateW COMMAND test-UpdW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
