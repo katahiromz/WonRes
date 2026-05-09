@@ -40,6 +40,7 @@ int main(void)
     DWORD dw;
     BOOL ret3 = GetBinaryTypeW(szPath, &dw);
     printf("ret3: %d\n", ret3);
+    printf("err: %d\n", GetLastError());
 
     return (ret1 && ret2 && ret3) ? 0 : 1;
 }
