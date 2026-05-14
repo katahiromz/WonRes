@@ -415,22 +415,36 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
     }
 
     // 新セクションの VirtualAddress を計算
-    // 既存 .rsrc を除いた全セクションの VA 末尾の最大値をベースにする
+    // .rsrc の直前セクション（元VAが .rsrc より小さいもの）の末尾をベースにする。
+    // これにより後続セクションとの間にギャップが生じないよう連続配置できる。
+    DWORD oldRsrcVAForSplit = (iOldRsrc >= 0) ? pSections[iOldRsrc].VirtualAddress : MAXDWORD;
     DWORD newVA;
     {
-        DWORD maxVAEnd = 0;
+        DWORD prevVAEnd = 0;
         for (WORD i = 0; i < nSections; i++) {
             if (i == (WORD)iOldRsrc)
                 continue;
-            DWORD end = pSections[i].VirtualAddress +
-                        max(pSections[i].Misc.VirtualSize, pSections[i].SizeOfRawData);
-            if (end > maxVAEnd)
-                maxVAEnd = end;
+            if (pSections[i].VirtualAddress >= oldRsrcVAForSplit)
+                continue; // .rsrc 以降のセクションは除外
+            DWORD vsz = max(pSections[i].Misc.VirtualSize, pSections[i].SizeOfRawData);
+            DWORD end = pSections[i].VirtualAddress + vsz;
+            if (end > prevVAEnd)
+                prevVAEnd = end;
         }
-        // 既存 .rsrc しかセクションがない（異常）場合のフォールバック
-        if (maxVAEnd == 0 && nSections > 0)
-            maxVAEnd = pSections[0].VirtualAddress + pSections[0].SizeOfRawData;
-        newVA = ALIGN_UP(maxVAEnd, secAlign);
+        // .rsrc が先頭セクション、または .rsrc が存在しない場合のフォールバック
+        if (prevVAEnd == 0) {
+            for (WORD i = 0; i < nSections; i++) {
+                if (i == (WORD)iOldRsrc)
+                    continue;
+                DWORD vsz = max(pSections[i].Misc.VirtualSize, pSections[i].SizeOfRawData);
+                DWORD end = pSections[i].VirtualAddress + vsz;
+                if (end > prevVAEnd)
+                    prevVAEnd = end;
+            }
+        }
+        if (prevVAEnd == 0 && nSections > 0)
+            prevVAEnd = pSections[0].VirtualAddress + pSections[0].SizeOfRawData;
+        newVA = ALIGN_UP(prevVAEnd, secAlign);
     }
 
     // 新セクションのファイルオフセット (newRaw) を計算
@@ -528,11 +542,37 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         ppDataEntries[i]->OffsetToData += newVA;
 
     // copy .rsrc
-    memcpy(pNewFile + newRaw, pNewRsrc, cbTotal);
+    CopyMemory(pNewFile + newRaw, pNewRsrc, cbTotal);
+
+    // 後続セクション（元VAが旧 .rsrc より大きかったもの）のVAを
+    // 新 .rsrc の末尾から連続するよう再配置する。
+    // これにより ReactOS のセクション連続性チェック（section.c:811）を満たす。
+    // ※ リロケーション情報を持つセクションは通常 .reloc のみで、
+    //   そのセクション自体の内容は変わらないため RVA の書き換えは不要。
+    DWORD sizeImage;
+    {
+        DWORD nextVA = ALIGN_UP(newVA + ALIGN_UP(cbTotal, secAlign), secAlign);
+        for (WORD i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
+            if (&pSections[i] == pRsrcSec)
+                continue;
+            if (pSections[i].VirtualAddress <= oldRsrcVAForSplit)
+                continue; // .rsrc より前のセクションはそのまま
+            DWORD vsz = max(pSections[i].Misc.VirtualSize, pSections[i].SizeOfRawData);
+            pSections[i].VirtualAddress = nextVA;
+            nextVA = ALIGN_UP(nextVA + ALIGN_UP(vsz, secAlign), secAlign);
+        }
+        // SizeOfImage は全セクション中の最大VA末尾から算出
+        DWORD maxVAEnd = 0;
+        for (WORD i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
+            DWORD vsz = max(pSections[i].Misc.VirtualSize, pSections[i].SizeOfRawData);
+            DWORD end = pSections[i].VirtualAddress + vsz;
+            if (end > maxVAEnd)
+                maxVAEnd = end;
+        }
+        sizeImage = ALIGN_UP(maxVAEnd, secAlign);
+    }
 
     // update PE headers
-    DWORD sizeImage = ALIGN_UP(newVA + cbRaw, secAlign);
-
     if (b64) {
         PIMAGE_NT_HEADERS64 pNt64 = (PIMAGE_NT_HEADERS64)pNt;
         pNt64->OptionalHeader.SizeOfImage = sizeImage;
