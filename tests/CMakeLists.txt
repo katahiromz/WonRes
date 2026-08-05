@@ -59,7 +59,7 @@ add_test(NAME StrW COMMAND test-StrW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_D
 if(WONRES_ENABLE_CRYPTO)
     # test-crypto.c
     add_executable(test-crypto test-crypto.c)
-    target_link_libraries(test-crypto PRIVATE WonRes imagehlp bcrypt)
+    target_link_libraries(test-crypto PRIVATE WonRes imagehlp advapi32)
 
     add_test(NAME crypto COMMAND test-crypto WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
