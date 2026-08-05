@@ -21,6 +21,8 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
         return 0;
 
     LPWSTR p = WonLockResource(hGlobal);
+    if (!p) // encrypted resource that failed to decrypt (no/wrong key, tampering)
+        return 0;
 
     uID &= 0x000F;
 
@@ -60,12 +62,14 @@ INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBu
             LPWSTR p = WonLockResource(hGlobal);
             uID &= 0x000F;
 
-            while (uID--)
-                p += *p + 1;
+            if (p) {
+                while (uID--)
+                    p += *p + 1;
 
-            if (nBufferMax != 1) {
-                retval = WideCharToMultiByte(CP_ACP, 0, (PWSTR)(p + 1), *p, lpBuffer,
-                                             nBufferMax - 1, NULL, NULL);
+                if (nBufferMax != 1) {
+                    retval = WideCharToMultiByte(CP_ACP, 0, (PWSTR)(p + 1), *p, lpBuffer,
+                                                 nBufferMax - 1, NULL, NULL);
+                }
             }
         }
     }

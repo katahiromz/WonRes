@@ -6,6 +6,9 @@
 #include <string.h>
 #include <time.h>
 #include "WonRes.h"
+#ifdef WONRES_ENABLE_CRYPTO
+#include "WonCryptoP.h"
+#endif
 
 // Script: C99/Win32でBeginUpdateResourceWなどのリソース更新関数を再実装してください。
 // 実行モジュール・更新モジュールについてx86/x64両方に対応して下さい。
@@ -822,3 +825,53 @@ BOOL WONAPI WonEndUpdateResourceA(HANDLE hUpdate, BOOL fDiscard)
 {
     return WonEndUpdateResourceW(hUpdate, fDiscard);
 }
+
+#ifdef WONRES_ENABLE_CRYPTO
+////////////////////////////////////////////////////////////////////////////////////
+// Encrypted resource writing
+
+BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName,
+                                        WORD wLanguage, LPVOID lpData, DWORD cbData)
+{
+    // A NULL/zero-length payload deletes the resource, same as
+    // WonUpdateResourceW -- nothing to encrypt in that case.
+    if (!lpData || cbData == 0)
+        return WonUpdateResourceW(hUpdate, lpType, lpName, wLanguage, lpData, cbData);
+
+    PBYTE pbBlob = NULL;
+    DWORD cbBlob = 0;
+    if (!WonCryptEncryptBuffer((const BYTE *)lpData, cbData, &pbBlob, &cbBlob))
+        return FALSE; // no encryption key configured, or an internal failure
+
+    BOOL bResult = WonUpdateResourceW(hUpdate, lpType, lpName, wLanguage, pbBlob, cbBlob);
+    HeapFree(GetProcessHeap(), 0, pbBlob);
+    return bResult;
+}
+
+BOOL WONAPI WonUpdateResourceEncryptedA(HANDLE hUpdate, LPCSTR lpType, LPCSTR lpName,
+                                        WORD wLanguage, LPVOID lpData, DWORD cbData)
+{
+    WCHAR szTypeW[MAX_RES_ID_LEN], szNameW[MAX_RES_ID_LEN];
+    LPWSTR pszTypeW, pszNameW;
+
+    if (IS_INTRESOURCE(lpType)) {
+        pszTypeW = MAKEINTRESOURCEW(PtrToUshort(lpType));
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpType, -1, szTypeW, _countof(szTypeW)))
+            return FALSE;
+        szTypeW[_countof(szTypeW) - 1] = UNICODE_NULL;
+        pszTypeW = szTypeW;
+    }
+
+    if (IS_INTRESOURCE(lpName)) {
+        pszNameW = MAKEINTRESOURCEW(PtrToUshort(lpName));
+    } else {
+        if (!MultiByteToWideChar(CP_ACP, 0, lpName, -1, szNameW, _countof(szNameW)))
+            return FALSE;
+        szNameW[_countof(szNameW) - 1] = UNICODE_NULL;
+        pszNameW = szNameW;
+    }
+
+    return WonUpdateResourceEncryptedW(hUpdate, pszTypeW, pszNameW, wLanguage, lpData, cbData);
+}
+#endif

@@ -1,0 +1,17 @@
+﻿(Japanese, UTF-8)
+
+【暗号化・復号化の方法】
+
+// 鍵の設定（パスワード方式の例。saltは呼び出し側で安全に管理・保存すること）
+BYTE salt[16] = { /* ランダム生成して保存しておく */ };
+WonSetEncryptionPasswordW(L"correct horse battery staple", salt, sizeof(salt), 200000);
+
+// 書き込み
+HANDLE h = WonBeginUpdateResourceW(L"target.exe", FALSE);
+WonUpdateResourceEncryptedW(h, RT_RCDATA, MAKEINTRESOURCEW(1), MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL), pData, cbData);
+WonEndUpdateResourceW(h, FALSE);
+
+// 読み込み（同じ鍵を設定しておけば透過的に復号される）
+HRSRC hRsrc = WonFindResourceW(hMod, MAKEINTRESOURCEW(1), RT_RCDATA);
+HGLOBAL hRes = WonLoadResource(hMod, hRsrc);
+LPVOID p = WonLockResource(hRes); // 鍵が違う/未設定ならNULL

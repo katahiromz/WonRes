@@ -8,10 +8,17 @@ cmake_minimum_required(VERSION 3.10)
 enable_testing()
 
 # project name, version, and languages
-project(WonRes VERSION 1.5 LANGUAGES C RC)
+project(WonRes VERSION 1.6 LANGUAGES C RC)
 
 # Unicode support
 add_definitions(-DUNICODE -D_UNICODE)
+
+# option WONRES_ENABLE_CRYPTO
+option(WONRES_ENABLE_CRYPTO "Enable WonRes encryption" ON)
+if(WONRES_ENABLE_CRYPTO)
+    add_definitions(-DWONRES_ENABLE_CRYPTO=1)
+endif()
+message(STATUS "WONRES_ENABLE_CRYPTO: ${WONRES_ENABLE_CRYPTO}")
 
 # statically link
 if (WIN32)
@@ -43,9 +50,15 @@ if (WIN32)
 endif()
 
 # libWonRes.a
-add_library(WonRes STATIC loader.c string.c updater.c)
-target_include_directories(WonRes INTERFACE .)
-target_link_libraries(WonRes PRIVATE imagehlp)
+if(WONRES_ENABLE_CRYPTO)
+    add_library(WonRes STATIC loader.c string.c updater.c crypto.c)
+    target_include_directories(WonRes INTERFACE .)
+    target_link_libraries(WonRes PRIVATE imagehlp bcrypt)
+else()
+    add_library(WonRes STATIC loader.c string.c updater.c)
+    target_include_directories(WonRes INTERFACE .)
+    target_link_libraries(WonRes PRIVATE imagehlp)
+endif()
 
 # tests
 add_subdirectory(tests)

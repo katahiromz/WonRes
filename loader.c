@@ -5,6 +5,9 @@
 #include <imagehlp.h>
 #include <assert.h>
 #include "WonRes.h"
+#ifdef WONRES_ENABLE_CRYPTO
+#include "WonCryptoP.h"
+#endif
 
 // Script:
 // C99/Win32でFindResourceExWなどのリソースローダーを再実装してください。LoadLibraryExのLOAD_LIBRARY_AS_DATAFILEにも対応してください。
@@ -224,7 +227,32 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
 ////////////////////////////////////////////////////////////////////////////////////
 // Lock resource
 
-LPVOID WONAPI WonLockResource(HGLOBAL hResData) { return (LPVOID)hResData; }
+LPVOID WONAPI WonLockResource(HGLOBAL hResData)
+{
+    if (!hResData)
+        return NULL;
+
+#ifdef WONRES_ENABLE_CRYPTO
+    // Transparent decryption: only kicks in for resources written with
+    // WonUpdateResourceEncrypted{A,W}. If they can't be authenticated with
+    // the currently configured key (missing key, wrong key, or the data
+    // was tampered with), this fails closed and returns NULL rather than
+    // handing back ciphertext or garbage.
+    if (WonCryptIsEncryptedBlob((const BYTE *)hResData))
+    {
+        PBYTE pbPlain = NULL;
+        DWORD cbPlain = 0;
+        if (!WonCryptDecryptBuffer((const BYTE *)hResData, &pbPlain, &cbPlain))
+        {
+            SetLastError(ERROR_INVALID_DATA);
+            return NULL;
+        }
+        return pbPlain; // caller may release with WonFreeResourceMemory()
+    }
+#endif
+
+    return (LPVOID)hResData;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Enum resource

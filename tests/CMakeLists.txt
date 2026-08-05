@@ -55,3 +55,11 @@ add_test(NAME UpdateA COMMAND test-UpdA WORKING_DIRECTORY "${CMAKE_CURRENT_BINAR
 add_test(NAME UpdateW COMMAND test-UpdW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME StrA COMMAND test-StrA WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 add_test(NAME StrW COMMAND test-StrW WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+if(WONRES_ENABLE_CRYPTO)
+    # test-crypto.c
+    add_executable(test-crypto test-crypto.c)
+    target_link_libraries(test-crypto PRIVATE WonRes imagehlp bcrypt)
+
+    add_test(NAME crypto COMMAND test-crypto WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
