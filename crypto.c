@@ -71,6 +71,76 @@ static void EnsureCS(void)
     }
 }
 
+// ---------------------------------------------------------------------------
+// Ownership tracking for decrypted resource buffers
+// ---------------------------------------------------------------------------
+// WonLoadResource returns two very different kinds of pointer depending on
+// whether the resource was encrypted:
+//   - encrypted resource  -> a fresh buffer from HeapAlloc (WonCryptDecryptBuffer)
+//   - plain resource      -> a pointer straight into the mapped module image
+// WonFreeResourceMemory must HeapFree only the former. Since the pointer
+// itself carries no marker we can safely inspect (probing bytes before an
+// arbitrary foreign pointer could read unmapped memory and crash), we keep
+// an explicit registry of the pointers we actually allocated and only free
+// ones found in it. This lets callers call WonFreeResourceMemory
+// unconditionally on every resource pointer, encrypted or not.
+typedef struct WON_ALLOC_NODE {
+    struct WON_ALLOC_NODE *pNext;
+    LPVOID pMemory;
+} WON_ALLOC_NODE, *PWON_ALLOC_NODE;
+
+static CRITICAL_SECTION g_AllocCS;
+static BOOL g_bAllocCSInit = FALSE;
+static PWON_ALLOC_NODE g_pAllocList = NULL;
+
+static void EnsureAllocCS(void)
+{
+    if (!g_bAllocCSInit) {
+        InitializeCriticalSection(&g_AllocCS);
+        g_bAllocCSInit = TRUE;
+    }
+}
+
+// Records pMemory as ours. Best-effort: if the tiny tracking node can't be
+// allocated, pMemory is simply never HeapFree'd later (a leak, not a
+// crash) rather than risking a bad free.
+static void TrackAllocatedBuffer(LPVOID pMemory)
+{
+    PWON_ALLOC_NODE pNode = (PWON_ALLOC_NODE)HeapAlloc(GetProcessHeap(), 0, sizeof(WON_ALLOC_NODE));
+    if (!pNode)
+        return;
+    pNode->pMemory = pMemory;
+
+    EnsureAllocCS();
+    EnterCriticalSection(&g_AllocCS);
+    pNode->pNext = g_pAllocList;
+    g_pAllocList = pNode;
+    LeaveCriticalSection(&g_AllocCS);
+}
+
+// If pMemory is one of ours, unlinks it and returns TRUE (caller may now
+// HeapFree it). Otherwise returns FALSE and does nothing.
+static BOOL UntrackAllocatedBuffer(LPVOID pMemory)
+{
+    BOOL bFound = FALSE;
+
+    EnsureAllocCS();
+    EnterCriticalSection(&g_AllocCS);
+    PWON_ALLOC_NODE *ppCur = &g_pAllocList;
+    while (*ppCur) {
+        if ((*ppCur)->pMemory == pMemory) {
+            PWON_ALLOC_NODE pDead = *ppCur;
+            *ppCur = pDead->pNext;
+            HeapFree(GetProcessHeap(), 0, pDead);
+            bFound = TRUE;
+            break;
+        }
+        ppCur = &(*ppCur)->pNext;
+    }
+    LeaveCriticalSection(&g_AllocCS);
+    return bFound;
+}
+
 static BOOL GetActiveKey(BYTE abKeyOut[WON_ENCRYPTION_KEY_SIZE])
 {
     BOOL bSet;
@@ -318,16 +388,49 @@ BOOL WONAPI WonIsEncryptionKeySet(VOID)
 
 VOID WONAPI WonFreeResourceMemory(LPVOID pMemory)
 {
-    if (pMemory)
+    if (!pMemory)
+        return;
+
+    // Only pointers WonCryptDecryptBuffer actually HeapAlloc'd are ours to
+    // free. A resource that wasn't encrypted is a raw pointer into the
+    // mapped module image (see WonLoadResource) and must never reach
+    // HeapFree -- doing so used to fail (or corrupt the heap) whenever
+    // encrypted and non-encrypted resources were mixed, because the old
+    // code decided whether to call HeapFree from the global
+    // g_bEnableCrypto flag alone instead of per-pointer.
+    if (UntrackAllocatedBuffer(pMemory))
         HeapFree(GetProcessHeap(), 0, pMemory);
 }
 
-BOOL WonCryptIsEncryptedBlob(const BYTE *pbData)
+BOOL WonCryptIsEncryptedBlob(const BYTE *pbData, DWORD cbData)
 {
-    if (!pbData)
+    // cbData must cover the whole fixed-size header before we dereference
+    // any of it (magic, version, IV, MAC, cbPlain). Without this check a
+    // small legitimate resource (fewer than sizeof(WON_CRYPT_HEADER) bytes)
+    // that happens to start with bytes resembling the magic could cause
+    // every caller downstream to read past the end of its buffer.
+    if (!pbData || cbData < sizeof(WON_CRYPT_HEADER))
         return FALSE;
     return memcmp(pbData, WON_CRYPT_MAGIC, sizeof(WON_CRYPT_MAGIC) - 1) == 0 &&
            pbData[8] == WON_CRYPT_VERSION;
+}
+
+// Bounds-checked peek at an encrypted blob's declared plaintext size. This
+// does NOT authenticate the blob (no key/MAC involved) -- it only protects
+// against a corrupted/malicious header reporting a nonsensical size, so
+// callers that just need a size (e.g. WonSizeofResource) never get a value
+// larger than the real blob. The actual fail-closed guarantee still comes
+// from WonCryptDecryptBuffer's MAC verification.
+DWORD WonCryptPeekPlainSize(const BYTE *pbBlob, DWORD cbBlob)
+{
+    if (!WonCryptIsEncryptedBlob(pbBlob, cbBlob))
+        return 0;
+
+    PWON_CRYPT_HEADER pHeader = (PWON_CRYPT_HEADER)pbBlob;
+    DWORD cbPlain = pHeader->cbPlain;
+    if (cbPlain > cbBlob - sizeof(WON_CRYPT_HEADER))
+        return 0;
+    return cbPlain;
 }
 
 // Derive a dedicated MAC key from the encryption key.
@@ -433,9 +536,9 @@ cleanup:
     return bResult;
 }
 
-BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, BYTE **ppbPlain, DWORD *pcbPlain)
+BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DWORD *pcbPlain)
 {
-    if (!ppbPlain || !pcbPlain || !WonCryptIsEncryptedBlob(pbBlob))
+    if (!ppbPlain || !pcbPlain || !WonCryptIsEncryptedBlob(pbBlob, cbBlob))
         return FALSE;
     *ppbPlain = NULL;
     *pcbPlain = 0;
@@ -446,8 +549,28 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, BYTE **ppbPlain, DWORD *pcbPlain)
 
     PWON_CRYPT_HEADER pHeader = (PWON_CRYPT_HEADER)pbBlob;
     DWORD cbPlain = pHeader->cbPlain;
+
+    // pHeader->cbPlain is untrusted at this point -- we haven't verified
+    // the MAC yet, so it may be attacker-controlled or simply corrupted.
+    // Bound it against the real, caller-supplied blob size *before*
+    // deriving cbCipher and using it to size the HmacSha256/CryptDecrypt
+    // reads below. Previously an inflated cbPlain could make cbCipher
+    // larger than the actual blob, causing HmacSha256 (and then
+    // CopyMemory/CryptDecrypt) to read past the end of pbBlob.
+    if (cbPlain > cbBlob - sizeof(WON_CRYPT_HEADER)) {
+        SecureZeroMemory(abKey, sizeof(abKey));
+        return FALSE;
+    }
+
     DWORD cbPad = 16 - (cbPlain % 16);
     DWORD cbCipher = cbPlain + cbPad;
+
+    // The header must declare exactly the amount of ciphertext that's
+    // actually present in this blob -- no more, no less.
+    if (sizeof(WON_CRYPT_HEADER) + cbCipher != cbBlob) {
+        SecureZeroMemory(abKey, sizeof(abKey));
+        return FALSE;
+    }
 
     BOOL bResult = FALSE;
     HCRYPTPROV hProv = 0;
@@ -511,6 +634,7 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, BYTE **ppbPlain, DWORD *pcbPlain)
         }
     }
 
+    TrackAllocatedBuffer(pbPlain);
     *ppbPlain = pbPlain;
     *pcbPlain = cbPlain;
     pbPlain = NULL;

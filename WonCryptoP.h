@@ -10,7 +10,7 @@ extern "C" {
 // Returns TRUE if pbData begins with the WonRes encrypted-resource header.
 // Cheap header check only; safe to call even if no key has been set, and
 // even on plain (non-encrypted) resource data.
-BOOL WonCryptIsEncryptedBlob(const BYTE *pbData);
+BOOL WonCryptIsEncryptedBlob(const BYTE *pbData, DWORD cbData);
 
 // Encrypts pbPlain (cbPlain bytes) into a newly HeapAlloc'd self-contained
 // blob: header + random nonce + auth tag + ciphertext. Fails (FALSE) if no
@@ -21,7 +21,9 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
 // (FALSE) if no key is set, the key is wrong, or the tag verification
 // fails (tampering) -- never returns partially/incorrectly decrypted data.
 // Caller frees *ppbPlain with HeapFree or WonFreeResourceMemory().
-BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, BYTE **ppbPlain, DWORD *pcbPlain);
+BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DWORD *pcbPlain);
+
+DWORD WonCryptPeekPlainSize(const BYTE *pbBlob, DWORD cbBlob);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -190,6 +190,27 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
     PIMAGE_RESOURCE_DATA_ENTRY pData =
         (PIMAGE_RESOURCE_DATA_ENTRY)(pRoot +
                                      LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
+
+#ifdef WONRES_ENABLE_CRYPTO
+    // For a transparently-encrypted resource, WonLockResource(WonLoadResource(...))
+    // hands back a decrypted buffer of the *plaintext* size, not pData->Size
+    // (which is the on-disk ciphertext blob size, always larger due to the
+    // header/padding overhead). Report the plaintext size here too, or
+    // callers using the standard SizeofResource+LoadResource+LockResource
+    // pattern will over-read the decrypted buffer by the difference.
+    PBYTE pBase = LDR_TO_BASE(hModule);
+    PBYTE pRawData;
+    if (LDR_IS_DATAFILE(hModule)) {
+        PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)ImageNtHeader(pBase);
+        PIMAGE_SECTION_HEADER pSection = NULL;
+        pRawData = pNt ? (PBYTE)ImageRvaToVa(pNt, pBase, pData->OffsetToData, &pSection) : NULL;
+    } else {
+        pRawData = pBase + pData->OffsetToData;
+    }
+    if (pRawData && WonCryptIsEncryptedBlob(pRawData, pData->Size))
+        return WonCryptPeekPlainSize(pRawData, pData->Size);
+#endif
+
     return pData->Size;
 }
 
@@ -209,19 +230,46 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
     PIMAGE_RESOURCE_DATA_ENTRY pData =
         (PIMAGE_RESOURCE_DATA_ENTRY)(pRoot +
                                      LDR_DATA_OFFSET(*(PIMAGE_RESOURCE_DIRECTORY_ENTRY)hrsrc));
+
+    PBYTE pRawData;
     if (LDR_IS_DATAFILE(hModule)) {
-        // LOAD_LIBRARY_AS_DATAFILE
-        // の場合、RVAをファイルオフセットベースのVAに変換
         PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)ImageNtHeader(pBase);
         if (!pNt)
             return NULL;
 
         PIMAGE_SECTION_HEADER pSection = NULL;
-        return (HGLOBAL)ImageRvaToVa(pNt, pBase, pData->OffsetToData, &pSection);
+        pRawData = (PBYTE)ImageRvaToVa(pNt, pBase, pData->OffsetToData, &pSection);
+    } else {
+        pRawData = pBase + pData->OffsetToData;
     }
+    if (!pRawData)
+        return NULL;
 
-    // 通常のロード（イメージとしてマップされている）場合は RVA を足すだけ
-    return (HGLOBAL)(pBase + pData->OffsetToData);
+#ifdef WONRES_ENABLE_CRYPTO
+    // Transparent decryption is done here rather than in WonLockResource,
+    // because only here do we still have pData->Size -- the real, trusted
+    // size of the on-disk blob. WonLockResource (like the real Win32
+    // LockResource) receives nothing but a bare pointer, so it has no way
+    // to bounds-check anything; doing the decryption there let a resource's
+    // own (unauthenticated) declared plaintext-size field drive reads past
+    // the end of the actual ciphertext during MAC verification. It also
+    // meant WonSizeofResource kept reporting the larger ciphertext size
+    // while callers ended up with this function's smaller decrypted
+    // buffer -- i.e. every successful encrypted-resource load primed the
+    // caller to over-read the returned buffer. See WonSizeofResource below,
+    // which now reports the matching plaintext size for encrypted blobs.
+    if (WonCryptIsEncryptedBlob(pRawData, pData->Size)) {
+        PBYTE pbPlain = NULL;
+        DWORD cbPlain = 0;
+        if (!WonCryptDecryptBuffer(pRawData, pData->Size, &pbPlain, &cbPlain)) {
+            SetLastError(ERROR_INVALID_DATA);
+            return NULL; // fail closed: missing/wrong key or tampered data
+        }
+        return (HGLOBAL)pbPlain; // caller releases via WonFreeResourceMemory()
+    }
+#endif
+
+    return (HGLOBAL)pRawData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -232,25 +280,13 @@ LPVOID WONAPI WonLockResource(HGLOBAL hResData)
     if (!hResData)
         return NULL;
 
-#ifdef WONRES_ENABLE_CRYPTO
-    // Transparent decryption: only kicks in for resources written with
-    // WonUpdateResourceEncrypted{A,W}. If they can't be authenticated with
-    // the currently configured key (missing key, wrong key, or the data
-    // was tampered with), this fails closed and returns NULL rather than
-    // handing back ciphertext or garbage.
-    if (WonCryptIsEncryptedBlob((const BYTE *)hResData))
-    {
-        PBYTE pbPlain = NULL;
-        DWORD cbPlain = 0;
-        if (!WonCryptDecryptBuffer((const BYTE *)hResData, &pbPlain, &cbPlain))
-        {
-            SetLastError(ERROR_INVALID_DATA);
-            return NULL;
-        }
-        return pbPlain; // caller may release with WonFreeResourceMemory()
-    }
-#endif
-
+    // Transparent decryption (when WONRES_ENABLE_CRYPTO is on) already
+    // happened in WonLoadResource, which is the only place that still has
+    // the trusted on-disk blob size needed to bounds-check the resource's
+    // own header fields. hResData here is therefore already either a plain
+    // resource pointer or an already-authenticated, already-decrypted
+    // buffer; matching real Win32 LockResource, this just hands the
+    // pointer back.
     return (LPVOID)hResData;
 }
 
