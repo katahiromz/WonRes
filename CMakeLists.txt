@@ -58,11 +58,12 @@ add_library(WonRes STATIC
     formatmsg.c
     iconcursor.c
     loader.c
+    loadimage.c
     menu.c
     string.c
     updater.c)
 target_include_directories(WonRes INTERFACE .)
-target_link_libraries(WonRes PRIVATE imagehlp advapi32)
+target_link_libraries(WonRes PRIVATE imagehlp advapi32 gdi32 user32)
 
 # tests
 add_subdirectory(tests)

@@ -160,6 +160,27 @@ DWORD WONAPI WonFormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageI
                                DWORD dwLanguageId, LPWSTR lpBuffer, DWORD nSize,
                                va_list *Arguments);
 
+////////////////////////////////////////////////////////////////////////////////////
+// LoadImage: the generic IMAGE_BITMAP/IMAGE_ICON/IMAGE_CURSOR loader. Only
+// resource loading (no LR_LOADFROMFILE) is Won-specific -- icons/cursors
+// reuse the same LookupIconIdFromDirectoryEx + CreateIconFromResourceEx
+// pair as WonLoadIcon/WonLoadCursor, and bitmaps go through
+// CreateDIBitmap/CreateDIBSection over the raw RT_BITMAP resource bytes.
+// LR_LOADFROMFILE has nothing to do with PE resources at all and is
+// forwarded to the real LoadImageA/W untouched, as is hInstance == NULL
+// with an int resource name (an OS-predefined OEM image, same special
+// case as WonLoadIcon/WonLoadCursor).
+//
+// Known gaps vs. the real LoadImage: LR_LOADTRANSPARENT and
+// LR_LOADMAP3DCOLORS color-remapping for IMAGE_BITMAP aren't implemented;
+// LR_SHARED doesn't provide real handle caching (every call still
+// allocates a fresh handle).
+
+HANDLE WONAPI WonLoadImageA(HINSTANCE hInstance, LPCSTR lpName, UINT uType, INT cxDesired,
+                            INT cyDesired, UINT fuLoad);
+HANDLE WONAPI WonLoadImageW(HINSTANCE hInstance, LPCWSTR lpName, UINT uType, INT cxDesired,
+                            INT cyDesired, UINT fuLoad);
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -230,6 +251,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadIcon WonLoadIconW
 #define WonLoadCursor WonLoadCursorW
 #define WonFormatMessage WonFormatMessageW
+#define WonLoadImage WonLoadImageW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -255,6 +277,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadIcon WonLoadIconA
 #define WonLoadCursor WonLoadCursorA
 #define WonFormatMessage WonFormatMessageA
+#define WonLoadImage WonLoadImageA
 #endif
 
 #ifdef __cplusplus
