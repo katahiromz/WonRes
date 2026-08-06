@@ -56,7 +56,7 @@ static void TestEncryptDecryptRoundTrip(void)
 	CHECK(pbOut != NULL && memcmp(pbOut, szPlain, cbPlain) == 0, "Decrypted content matches original");
 
 	if (pbOut)
-		WonFreeResourceMemory(pbOut);
+		WonFreeResource(pbOut);
 	if (pbBlob)
 		HeapFree(GetProcessHeap(), 0, pbBlob);
 	WonClearEncryptionKey();
@@ -183,7 +183,7 @@ static void TestPasswordDerivation(void)
 		"SetEncryptionPasswordW rejects iteration counts below the enforced minimum");
 
 	if (pbOut)
-		WonFreeResourceMemory(pbOut);
+		WonFreeResource(pbOut);
 	if (pbBlob)
 		HeapFree(GetProcessHeap(), 0, pbBlob);
 	WonClearEncryptionKey();
@@ -228,8 +228,8 @@ static void TestEndToEndPeRoundTrip(void)
 			if (pData) {
 				CHECK(memcmp(pData, szPlain, cbPlain) == 0,
 					"Decrypted resource content matches original plaintext");
-				WonFreeResourceMemory(pData);
 			}
+			WonFreeResource(hRes);
 		}
 
 		// Reload with the wrong key: must fail closed, not return ciphertext.

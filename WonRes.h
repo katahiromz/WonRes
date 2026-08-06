@@ -56,6 +56,12 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
 HBITMAP WONAPI WonLoadBitmapA(HINSTANCE hInstance, LPCSTR lpBitmapName);
 HBITMAP WONAPI WonLoadBitmapW(HINSTANCE hInstance, LPCWSTR lpBitmapName);
 
+// Frees a buffer returned by WonLoadResource() for an *encrypted* resource
+// (decryption allocates a fresh heap buffer instead of aliasing the image).
+// Safe/no-op to call on NULL. Not calling it just leaks until process exit,
+// same as the OS does for classic LoadResource() handles.
+BOOL WONAPI WonFreeResource(HGLOBAL hGlobal);
+
 #ifdef WONRES_ENABLE_CRYPTO
 ////////////////////////////////////////////////////////////////////////////////////
 // Optional resource encryption (AES-256-GCM via CNG)
@@ -118,12 +124,6 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadString WonLoadStringA
 #define WonLoadBitmap WonLoadBitmapA
 #endif
-
-// Frees a buffer returned by WonLockResource() for an *encrypted* resource
-// (decryption allocates a fresh heap buffer instead of aliasing the image).
-// Safe/no-op to call on NULL. Not calling it just leaks until process exit,
-// same as the OS does for classic LoadResource() handles.
-VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
 
 #ifdef __cplusplus
 } // extern "C"

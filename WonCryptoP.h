@@ -20,7 +20,7 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
 // Decrypts + authenticates a blob produced by WonCryptEncryptBuffer. Fails
 // (FALSE) if no key is set, the key is wrong, or the tag verification
 // fails (tampering) -- never returns partially/incorrectly decrypted data.
-// Caller frees *ppbPlain with HeapFree or WonFreeResourceMemory().
+// Caller frees *ppbPlain with HeapFree or WonFreeResource().
 BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DWORD *pcbPlain);
 
 DWORD WonCryptPeekPlainSize(const BYTE *pbBlob, DWORD cbBlob);

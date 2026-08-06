@@ -78,11 +78,11 @@ static void EnsureCS(void)
 // whether the resource was encrypted:
 //   - encrypted resource  -> a fresh buffer from HeapAlloc (WonCryptDecryptBuffer)
 //   - plain resource      -> a pointer straight into the mapped module image
-// WonFreeResourceMemory must HeapFree only the former. Since the pointer
+// WonFreeResource must HeapFree only the former. Since the pointer
 // itself carries no marker we can safely inspect (probing bytes before an
 // arbitrary foreign pointer could read unmapped memory and crash), we keep
 // an explicit registry of the pointers we actually allocated and only free
-// ones found in it. This lets callers call WonFreeResourceMemory
+// ones found in it. This lets callers call WonFreeResource
 // unconditionally on every resource pointer, encrypted or not.
 typedef struct WON_ALLOC_NODE {
     struct WON_ALLOC_NODE *pNext;
@@ -638,11 +638,11 @@ cleanup:
 }
 #endif // def WONRES_ENABLE_CRYPTO
 
-VOID WONAPI WonFreeResourceMemory(LPVOID pMemory)
+BOOL WONAPI WonFreeResource(HGLOBAL hGlobal)
 {
 #ifdef WONRES_ENABLE_CRYPTO
-    if (!pMemory)
-        return;
+    if (!hGlobal)
+        return TRUE;
 
     // Only pointers WonCryptDecryptBuffer actually HeapAlloc'd are ours to
     // free. A resource that wasn't encrypted is a raw pointer into the
@@ -651,7 +651,8 @@ VOID WONAPI WonFreeResourceMemory(LPVOID pMemory)
     // encrypted and non-encrypted resources were mixed, because the old
     // code decided whether to call HeapFree from the global
     // g_bEnableCrypto flag alone instead of per-pointer.
-    if (UntrackAllocatedBuffer(pMemory))
-        HeapFree(GetProcessHeap(), 0, pMemory);
+    if (UntrackAllocatedBuffer(hGlobal))
+        HeapFree(GetProcessHeap(), 0, hGlobal);
 #endif
+    return TRUE;
 }

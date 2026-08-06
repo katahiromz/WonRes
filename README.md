@@ -35,6 +35,8 @@ BOOL WONAPI WonUpdateResource(
 
 INT WONAPI WonLoadString(HINSTANCE hInstance, UINT uID, LPTSTR lpBuffer, INT nBufferMax);
 HBITMAP WONAPI WonLoadBitmap(HINSTANCE hInstance, LPCTSTR lpBitmapName);
+
+BOOL WONAPI WonFreeResource(HGLOBAL hGlobal);
 ```
 
 License: MIT

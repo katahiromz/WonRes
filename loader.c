@@ -265,7 +265,7 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
             SetLastError(ERROR_INVALID_DATA);
             return NULL; // fail closed: missing/wrong key or tampered data
         }
-        return (HGLOBAL)pbPlain; // caller releases via WonFreeResourceMemory()
+        return (HGLOBAL)pbPlain; // caller releases via WonFreeResource()
     }
 #endif
 
