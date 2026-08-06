@@ -52,6 +52,7 @@ endif()
 # libWonRes.a
 add_library(WonRes STATIC
     accel.c
+    anicursor.c
     bitmap.c
     crypto.c
     dialog.c

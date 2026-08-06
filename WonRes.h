@@ -138,6 +138,14 @@ HACCEL WONAPI WonLoadAcceleratorsW(HINSTANCE hInstance, LPCWSTR lpTableName);
 // hInstance == NULL with an int resource name (IDI_*/IDC_* constants) is
 // forwarded to the real LoadIconW/LoadCursorW: those refer to the OS's own
 // predefined icons/cursors, not a PE resource Won's loader could find.
+//
+// Animated icons/cursors (RT_ANIICON/RT_ANICURSOR, i.e. embedded .ani/RIFF
+// data) are handled transparently too: if the name doesn't resolve to a
+// static RT_GROUP_ICON/RT_GROUP_CURSOR, these fall back to the animated
+// form the same way the real LoadIcon/LoadCursor do. That fallback (in
+// anicursor.c) has to bridge through a short-lived temp file, since Win32
+// has no public API to build an animated handle straight from memory --
+// see anicursor.c for details and the resulting disk-exposure trade-off.
 
 HICON WONAPI WonLoadIconA(HINSTANCE hInstance, LPCSTR lpIconName);
 HICON WONAPI WonLoadIconW(HINSTANCE hInstance, LPCWSTR lpIconName);
@@ -169,7 +177,8 @@ DWORD WONAPI WonFormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageI
 // LR_LOADFROMFILE has nothing to do with PE resources at all and is
 // forwarded to the real LoadImageA/W untouched, as is hInstance == NULL
 // with an int resource name (an OS-predefined OEM image, same special
-// case as WonLoadIcon/WonLoadCursor).
+// case as WonLoadIcon/WonLoadCursor). IMAGE_ICON/IMAGE_CURSOR also get
+// the same animated (.ani/RIFF) fallback described above WonLoadIconA/W.
 //
 // Known gaps vs. the real LoadImage: LR_LOADTRANSPARENT and
 // LR_LOADMAP3DCOLORS color-remapping for IMAGE_BITMAP aren't implemented;

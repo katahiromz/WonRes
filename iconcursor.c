@@ -27,6 +27,12 @@
 #include <imagehlp.h>
 #include "WonRes.h"
 
+// Internal helper defined in anicursor.c: falls back to the animated
+// (RT_ANIICON/RT_ANICURSOR, i.e. .ani/RIFF) form of the resource via a
+// short-lived temp file. Not part of the public WonRes.h surface.
+extern HANDLE WonpLoadAnimatedIconOrCursorW(HINSTANCE hInstance, LPCWSTR lpName, BOOL fIcon,
+                                            INT cx, INT cy, UINT fuLoad);
+
 static HANDLE LoadIconOrCursorW(HINSTANCE hInstance, LPCWSTR lpName, BOOL fIcon)
 {
     if (!hInstance && IS_INTRESOURCE(lpName))
@@ -39,8 +45,11 @@ static HANDLE LoadIconOrCursorW(HINSTANCE hInstance, LPCWSTR lpName, BOOL fIcon)
 
     // Hop 1: pick the best-matching variant out of the group directory.
     HRSRC hRsrcGroup = WonFindResourceW(hInstance, lpName, pGroupType);
-    if (!hRsrcGroup)
-        return NULL;
+    if (!hRsrcGroup) {
+        // Not a static icon/cursor -- try the animated (.ani) form before
+        // giving up, exactly like the real LoadIcon/LoadCursor do.
+        return WonpLoadAnimatedIconOrCursorW(hInstance, lpName, fIcon, cx, cy, LR_DEFAULTCOLOR);
+    }
 
     HGLOBAL hGlobalGroup = WonLoadResource(hInstance, hRsrcGroup);
     if (!hGlobalGroup)
