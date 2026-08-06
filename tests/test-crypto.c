@@ -47,11 +47,11 @@ static void TestEncryptDecryptRoundTrip(void)
 	CHECK(WonCryptEncryptBuffer((const BYTE *)szPlain, cbPlain, &pbBlob, &cbBlob),
 		"EncryptBuffer succeeds with key set");
 	CHECK(pbBlob != NULL && cbBlob > cbPlain, "Encrypted blob is non-null and larger than plain");
-	CHECK(WonCryptIsEncryptedBlob(pbBlob), "Blob is recognized as encrypted");
+	CHECK(WonCryptIsEncryptedBlob(pbBlob, cbBlob), "Blob is recognized as encrypted");
 
 	PBYTE pbOut = NULL;
 	DWORD cbOut = 0;
-	CHECK(WonCryptDecryptBuffer(pbBlob, &pbOut, &cbOut), "DecryptBuffer succeeds with correct key");
+	CHECK(WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut, &cbOut), "DecryptBuffer succeeds with correct key");
 	CHECK(cbOut == cbPlain, "Decrypted length matches original");
 	CHECK(pbOut != NULL && memcmp(pbOut, szPlain, cbPlain) == 0, "Decrypted content matches original");
 
@@ -86,20 +86,20 @@ static void TestFailClosed(void)
 	WonSetEncryptionKey(g_abOtherKey, sizeof(g_abOtherKey));
 	PBYTE pbOut = NULL;
 	DWORD cbOut = 0;
-	CHECK(!WonCryptDecryptBuffer(pbBlob, &pbOut, &cbOut),
+	CHECK(!WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut, &cbOut),
 		"DecryptBuffer fails with wrong key (fail closed)");
 	CHECK(pbOut == NULL, "No plaintext leaked when key is wrong");
 
 	// No key at all again: decryption of a valid blob must also fail.
 	WonClearEncryptionKey();
-	CHECK(!WonCryptDecryptBuffer(pbBlob, &pbOut, &cbOut),
+	CHECK(!WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut, &cbOut),
 		"DecryptBuffer fails when no key is set (fail closed)");
 
 	// Tampering: flip one byte of ciphertext, decryption (with correct key) must fail.
 	WonSetEncryptionKey(g_abTestKey, sizeof(g_abTestKey));
 	if (cbBlob > 0) {
 		pbBlob[cbBlob - 1] ^= 0xFF; // corrupt last byte of ciphertext
-		CHECK(!WonCryptDecryptBuffer(pbBlob, &pbOut, &cbOut),
+		CHECK(!WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut, &cbOut),
 			"DecryptBuffer fails on tampered ciphertext (MAC mismatch)");
 	}
 
@@ -164,7 +164,7 @@ static void TestPasswordDerivation(void)
 
 	PBYTE pbOut = NULL;
 	DWORD cbOut = 0;
-	CHECK(WonCryptDecryptBuffer(pbBlob, &pbOut, &cbOut),
+	CHECK(WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut, &cbOut),
 		"Decrypt succeeds after re-deriving identical key from password");
 	CHECK(cbOut == cbPlain && memcmp(pbOut, szPlain, cbPlain) == 0,
 		"Content matches after password re-derivation round trip");
@@ -175,7 +175,7 @@ static void TestPasswordDerivation(void)
 		WON_ENCRYPTION_MIN_ITERATIONS);
 	PBYTE pbOut2 = NULL;
 	DWORD cbOut2 = 0;
-	CHECK(!WonCryptDecryptBuffer(pbBlob, &pbOut2, &cbOut2),
+	CHECK(!WonCryptDecryptBuffer(pbBlob, cbBlob, &pbOut2, &cbOut2),
 		"Decrypt fails with key derived from a different password");
 
 	// Too few iterations must be rejected outright.
