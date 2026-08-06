@@ -145,6 +145,21 @@ HICON WONAPI WonLoadIconW(HINSTANCE hInstance, LPCWSTR lpIconName);
 HCURSOR WONAPI WonLoadCursorA(HINSTANCE hInstance, LPCSTR lpCursorName);
 HCURSOR WONAPI WonLoadCursorW(HINSTANCE hInstance, LPCWSTR lpCursorName);
 
+////////////////////////////////////////////////////////////////////////////////////
+// FormatMessage. Only FORMAT_MESSAGE_FROM_HMODULE is Won-specific -- the
+// module's RT_MESSAGETABLE resource is located/decrypted the same way as
+// everything else above, and the located message text is then handed to
+// the real FormatMessageA/W (as FORMAT_MESSAGE_FROM_STRING) to do the
+// actual insert-sequence formatting. Every other dwFlags combination is
+// forwarded to the real FormatMessageA/W untouched.
+
+DWORD WONAPI WonFormatMessageA(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
+                               DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize,
+                               va_list *Arguments);
+DWORD WONAPI WonFormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
+                               DWORD dwLanguageId, LPWSTR lpBuffer, DWORD nSize,
+                               va_list *Arguments);
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -214,6 +229,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadAccelerators WonLoadAcceleratorsW
 #define WonLoadIcon WonLoadIconW
 #define WonLoadCursor WonLoadCursorW
+#define WonFormatMessage WonFormatMessageW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -238,6 +254,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadAccelerators WonLoadAcceleratorsA
 #define WonLoadIcon WonLoadIconA
 #define WonLoadCursor WonLoadCursorA
+#define WonFormatMessage WonFormatMessageA
 #endif
 
 #ifdef __cplusplus
