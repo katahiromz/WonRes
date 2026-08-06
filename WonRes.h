@@ -119,6 +119,16 @@ HMENU WONAPI WonLoadMenuW(HINSTANCE hInstance, LPCWSTR lpMenuName);
 HMENU WONAPI WonLoadMenuIndirectA(HGLOBAL hMenuTemplate);
 HMENU WONAPI WonLoadMenuIndirectW(HGLOBAL hMenuTemplate);
 
+////////////////////////////////////////////////////////////////////////////////////
+// Accelerator tables (RT_ACCELERATOR), loaded/decrypted the same way as
+// everything else above. Unlike dialogs/menus, real Win32 has no separate
+// *Indirect entry point here -- CreateAcceleratorTableA/W already fills
+// that role, taking the raw ACCEL[] array directly -- so there's no
+// WonLoadAcceleratorsIndirect to go with it.
+
+HACCEL WONAPI WonLoadAcceleratorsA(HINSTANCE hInstance, LPCSTR lpTableName);
+HACCEL WONAPI WonLoadAcceleratorsW(HINSTANCE hInstance, LPCWSTR lpTableName);
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -185,6 +195,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonCreateDialogIndirect WonCreateDialogIndirectW
 #define WonLoadMenu WonLoadMenuW
 #define WonLoadMenuIndirect WonLoadMenuIndirectW
+#define WonLoadAccelerators WonLoadAcceleratorsW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -206,6 +217,7 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonCreateDialogIndirect WonCreateDialogIndirectA
 #define WonLoadMenu WonLoadMenuA
 #define WonLoadMenuIndirect WonLoadMenuIndirectA
+#define WonLoadAccelerators WonLoadAcceleratorsA
 #endif
 
 #ifdef __cplusplus
