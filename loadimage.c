@@ -70,8 +70,18 @@ static HBITMAP CreateBitmapFromResourceBits(LPBYTE pResData, DWORD cbResData, UI
     if (!hdcScreen)
         return NULL;
 
+    // CreateDIBSection hands back a raw pixel buffer sized/strided from
+    // biWidth/biBitCount directly -- it does not decode BI_RLE4/BI_RLE8,
+    // so copying compressed source bytes into it would just corrupt the
+    // image. CreateDIBitmap, on the other hand, goes through GDI's normal
+    // DIB engine and decodes RLE transparently. So RLE-compressed source
+    // data always goes through CreateDIBitmap, regardless of whether the
+    // caller asked for LR_CREATEDIBSECTION.
+    BOOL fCompressed = (pbmi->bmiHeader.biCompression == BI_RLE8 ||
+                        pbmi->bmiHeader.biCompression == BI_RLE4);
+
     HBITMAP hbm;
-    if (fuLoad & LR_CREATEDIBSECTION) {
+    if ((fuLoad & LR_CREATEDIBSECTION) && !fCompressed) {
         LPVOID pvBits = NULL;
         hbm = CreateDIBSection(hdcScreen, pbmi, DIB_RGB_COLORS, &pvBits, NULL, 0);
         if (hbm && pvBits)
