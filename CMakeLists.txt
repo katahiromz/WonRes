@@ -50,15 +50,9 @@ if (WIN32)
 endif()
 
 # libWonRes.a
-if(WONRES_ENABLE_CRYPTO)
-    add_library(WonRes STATIC bitmap.c loader.c string.c updater.c crypto.c)
-    target_include_directories(WonRes INTERFACE .)
-    target_link_libraries(WonRes PRIVATE imagehlp advapi32)
-else()
-    add_library(WonRes STATIC bitmap.c loader.c string.c updater.c)
-    target_include_directories(WonRes INTERFACE .)
-    target_link_libraries(WonRes PRIVATE imagehlp)
-endif()
+add_library(WonRes STATIC bitmap.c loader.c string.c updater.c crypto.c)
+target_include_directories(WonRes INTERFACE .)
+target_link_libraries(WonRes PRIVATE imagehlp advapi32)
 
 # tests
 add_subdirectory(tests)

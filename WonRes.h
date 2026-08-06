@@ -86,12 +86,6 @@ BOOL WONAPI WonUpdateResourceEncryptedA(HANDLE hUpdate, LPCSTR lpType, LPCSTR lp
 BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName,
                                         WORD wLanguage, LPVOID lpData, DWORD cbData);
 
-// Frees a buffer returned by WonLockResource() for an *encrypted* resource
-// (decryption allocates a fresh heap buffer instead of aliasing the image).
-// Safe/no-op to call on NULL. Not calling it just leaks until process exit,
-// same as the OS does for classic LoadResource() handles.
-VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
-
 #ifdef UNICODE
 #define WonSetEncryptionPassword WonSetEncryptionPasswordW
 #define WonUpdateResourceEncrypted WonUpdateResourceEncryptedW
@@ -124,6 +118,12 @@ VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
 #define WonLoadString WonLoadStringA
 #define WonLoadBitmap WonLoadBitmapA
 #endif
+
+// Frees a buffer returned by WonLockResource() for an *encrypted* resource
+// (decryption allocates a fresh heap buffer instead of aliasing the image).
+// Safe/no-op to call on NULL. Not calling it just leaks until process exit,
+// same as the OS does for classic LoadResource() handles.
+VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -8,9 +8,9 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include "WonRes.h"
+
 #ifdef WONRES_ENABLE_CRYPTO
 #include "WonCryptoP.h"
-#endif
 
 #pragma comment(lib, "advapi32.lib")
 
@@ -386,22 +386,6 @@ BOOL WONAPI WonIsEncryptionKeySet(VOID)
     return bSet;
 }
 
-VOID WONAPI WonFreeResourceMemory(LPVOID pMemory)
-{
-    if (!pMemory)
-        return;
-
-    // Only pointers WonCryptDecryptBuffer actually HeapAlloc'd are ours to
-    // free. A resource that wasn't encrypted is a raw pointer into the
-    // mapped module image (see WonLoadResource) and must never reach
-    // HeapFree -- doing so used to fail (or corrupt the heap) whenever
-    // encrypted and non-encrypted resources were mixed, because the old
-    // code decided whether to call HeapFree from the global
-    // g_bEnableCrypto flag alone instead of per-pointer.
-    if (UntrackAllocatedBuffer(pMemory))
-        HeapFree(GetProcessHeap(), 0, pMemory);
-}
-
 BOOL WonCryptIsEncryptedBlob(const BYTE *pbData, DWORD cbData)
 {
     // cbData must cover the whole fixed-size header before we dereference
@@ -651,4 +635,23 @@ cleanup:
     SecureZeroMemory(abMacKey, sizeof(abMacKey));
     SecureZeroMemory(abComputedMac, sizeof(abComputedMac));
     return bResult;
+}
+#endif // def WONRES_ENABLE_CRYPTO
+
+VOID WONAPI WonFreeResourceMemory(LPVOID pMemory)
+{
+#ifdef WONRES_ENABLE_CRYPTO
+    if (!pMemory)
+        return;
+
+    // Only pointers WonCryptDecryptBuffer actually HeapAlloc'd are ours to
+    // free. A resource that wasn't encrypted is a raw pointer into the
+    // mapped module image (see WonLoadResource) and must never reach
+    // HeapFree -- doing so used to fail (or corrupt the heap) whenever
+    // encrypted and non-encrypted resources were mixed, because the old
+    // code decided whether to call HeapFree from the global
+    // g_bEnableCrypto flag alone instead of per-pointer.
+    if (UntrackAllocatedBuffer(pMemory))
+        HeapFree(GetProcessHeap(), 0, pMemory);
+#endif
 }
