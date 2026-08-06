@@ -53,6 +53,9 @@ BOOL WONAPI WonUpdateResourceW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR lpName, W
 INT WONAPI WonLoadStringA(HINSTANCE hInstance, UINT uID, LPSTR lpBuffer, INT nBufferMax);
 INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax);
 
+HBITMAP WONAPI WonLoadBitmapA(HINSTANCE hInstance, LPCSTR lpBitmapName);
+HBITMAP WONAPI WonLoadBitmapW(HINSTANCE hInstance, LPCWSTR lpBitmapName);
+
 #ifdef WONRES_ENABLE_CRYPTO
 ////////////////////////////////////////////////////////////////////////////////////
 // Optional resource encryption (AES-256-GCM via CNG)
@@ -108,6 +111,7 @@ VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
 #define WonUpdateResource WonUpdateResourceW
 #define WonEndUpdateResource WonEndUpdateResourceW
 #define WonLoadString WonLoadStringW
+#define WonLoadBitmap WonLoadBitmapW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -118,6 +122,7 @@ VOID WONAPI WonFreeResourceMemory(LPVOID pMemory);
 #define WonUpdateResource WonUpdateResourceA
 #define WonEndUpdateResource WonEndUpdateResourceA
 #define WonLoadString WonLoadStringA
+#define WonLoadBitmap WonLoadBitmapA
 #endif
 
 #ifdef __cplusplus

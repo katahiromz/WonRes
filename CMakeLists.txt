@@ -51,11 +51,11 @@ endif()
 
 # libWonRes.a
 if(WONRES_ENABLE_CRYPTO)
-    add_library(WonRes STATIC loader.c string.c updater.c crypto.c)
+    add_library(WonRes STATIC bitmap.c loader.c string.c updater.c crypto.c)
     target_include_directories(WonRes INTERFACE .)
     target_link_libraries(WonRes PRIVATE imagehlp advapi32)
 else()
-    add_library(WonRes STATIC loader.c string.c updater.c)
+    add_library(WonRes STATIC bitmap.c loader.c string.c updater.c)
     target_include_directories(WonRes INTERFACE .)
     target_link_libraries(WonRes PRIVATE imagehlp)
 endif()
