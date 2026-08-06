@@ -105,6 +105,20 @@ HWND WONAPI WonCreateDialogIndirectParamW(HINSTANCE hInstance, HGLOBAL hDialogTe
 #define WonCreateDialogIndirectW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc) \
     WonCreateDialogIndirectParamW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc, 0)
 
+////////////////////////////////////////////////////////////////////////////////////
+// Menus (RT_MENU), loaded/decrypted the same way as everything else above
+
+HMENU WONAPI WonLoadMenuA(HINSTANCE hInstance, LPCSTR lpMenuName);
+HMENU WONAPI WonLoadMenuW(HINSTANCE hInstance, LPCWSTR lpMenuName);
+
+// *Indirect* variants: caller already has an HGLOBAL from WonLoadResource
+// (e.g. obtained via WonFindResource(..., RT_MENU) themselves), passed in
+// place of the usual (pre-locked) MENUTEMPLATE pointer. This still goes
+// through WonLockResource, so an encrypted template that fails to decrypt
+// is handled the same fail-closed way as the non-Indirect forms.
+HMENU WONAPI WonLoadMenuIndirectA(HGLOBAL hMenuTemplate);
+HMENU WONAPI WonLoadMenuIndirectW(HGLOBAL hMenuTemplate);
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -169,6 +183,8 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonCreateDialog WonCreateDialogW
 #define WonDialogBoxIndirect WonDialogBoxIndirectW
 #define WonCreateDialogIndirect WonCreateDialogIndirectW
+#define WonLoadMenu WonLoadMenuW
+#define WonLoadMenuIndirect WonLoadMenuIndirectW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -188,6 +204,8 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonCreateDialog WonCreateDialogA
 #define WonDialogBoxIndirect WonDialogBoxIndirectA
 #define WonCreateDialogIndirect WonCreateDialogIndirectA
+#define WonLoadMenu WonLoadMenuA
+#define WonLoadMenuIndirect WonLoadMenuIndirectA
 #endif
 
 #ifdef __cplusplus
