@@ -129,6 +129,22 @@ HMENU WONAPI WonLoadMenuIndirectW(HGLOBAL hMenuTemplate);
 HACCEL WONAPI WonLoadAcceleratorsA(HINSTANCE hInstance, LPCSTR lpTableName);
 HACCEL WONAPI WonLoadAcceleratorsW(HINSTANCE hInstance, LPCWSTR lpTableName);
 
+////////////////////////////////////////////////////////////////////////////////////
+// Icons (RT_GROUP_ICON/RT_ICON) and cursors (RT_GROUP_CURSOR/RT_CURSOR),
+// loaded/decrypted the same way as everything else above. Real Win32 has
+// no *Indirect entry points for these -- the public LookupIconIdFromDirectoryEx
+// + CreateIconFromResourceEx pair already fills that role internally.
+//
+// hInstance == NULL with an int resource name (IDI_*/IDC_* constants) is
+// forwarded to the real LoadIconW/LoadCursorW: those refer to the OS's own
+// predefined icons/cursors, not a PE resource Won's loader could find.
+
+HICON WONAPI WonLoadIconA(HINSTANCE hInstance, LPCSTR lpIconName);
+HICON WONAPI WonLoadIconW(HINSTANCE hInstance, LPCWSTR lpIconName);
+
+HCURSOR WONAPI WonLoadCursorA(HINSTANCE hInstance, LPCSTR lpCursorName);
+HCURSOR WONAPI WonLoadCursorW(HINSTANCE hInstance, LPCWSTR lpCursorName);
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -196,6 +212,8 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadMenu WonLoadMenuW
 #define WonLoadMenuIndirect WonLoadMenuIndirectW
 #define WonLoadAccelerators WonLoadAcceleratorsW
+#define WonLoadIcon WonLoadIconW
+#define WonLoadCursor WonLoadCursorW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -218,6 +236,8 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonLoadMenu WonLoadMenuA
 #define WonLoadMenuIndirect WonLoadMenuIndirectA
 #define WonLoadAccelerators WonLoadAcceleratorsA
+#define WonLoadIcon WonLoadIconA
+#define WonLoadCursor WonLoadCursorA
 #endif
 
 #ifdef __cplusplus

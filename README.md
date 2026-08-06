@@ -36,6 +36,8 @@ BOOL WONAPI WonUpdateResource(
 INT WONAPI WonLoadString(HINSTANCE hInstance, UINT uID, LPTSTR lpBuffer, INT nBufferMax);
 HBITMAP WONAPI WonLoadBitmap(HINSTANCE hInstance, LPCTSTR lpBitmapName);
 HMENU WONAPI WonLoadMenu(HINSTANCE hInstance, LPCTSTR lpMenuName);
+HICON WONAPI WonLoadIcon(HINSTANCE hInstance, LPCTSTR lpIconName);
+HCURSOR WONAPI WonLoadCursor(HINSTANCE hInstance, LPTCSTR lpCursorName);
 
 INT_PTR WONAPI WonDialogBox(HINSTANCE hInstance, LPCTSTR lpTemplateName, HWND hWndParent,
                             DLGPROC lpDialogFunc);

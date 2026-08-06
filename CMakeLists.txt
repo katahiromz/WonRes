@@ -50,7 +50,7 @@ if (WIN32)
 endif()
 
 # libWonRes.a
-add_library(WonRes STATIC accel.c bitmap.c crypto.c dialog.c loader.c menu.c string.c updater.c)
+add_library(WonRes STATIC accel.c bitmap.c crypto.c dialog.c iconcursor.c loader.c menu.c string.c updater.c)
 target_include_directories(WonRes INTERFACE .)
 target_link_libraries(WonRes PRIVATE imagehlp advapi32)
 
