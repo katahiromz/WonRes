@@ -56,6 +56,55 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
 HBITMAP WONAPI WonLoadBitmapA(HINSTANCE hInstance, LPCSTR lpBitmapName);
 HBITMAP WONAPI WonLoadBitmapW(HINSTANCE hInstance, LPCWSTR lpBitmapName);
 
+////////////////////////////////////////////////////////////////////////////////////
+// Dialog boxes (RT_DIALOG), loaded/decrypted the same way as everything else above
+
+INT_PTR WONAPI WonDialogBoxParamA(HINSTANCE hInstance, LPCSTR lpTemplateName, HWND hWndParent,
+                                  DLGPROC lpDialogFunc, LPARAM dwInitParam);
+INT_PTR WONAPI WonDialogBoxParamW(HINSTANCE hInstance, LPCWSTR lpTemplateName, HWND hWndParent,
+                                  DLGPROC lpDialogFunc, LPARAM dwInitParam);
+
+HWND WONAPI WonCreateDialogParamA(HINSTANCE hInstance, LPCSTR lpTemplateName, HWND hWndParent,
+                                  DLGPROC lpDialogFunc, LPARAM dwInitParam);
+HWND WONAPI WonCreateDialogParamW(HINSTANCE hInstance, LPCWSTR lpTemplateName, HWND hWndParent,
+                                  DLGPROC lpDialogFunc, LPARAM dwInitParam);
+
+// *Indirect* variants: caller already has an HGLOBAL from WonLoadResource
+// (e.g. obtained via WonFindResource(..., RT_DIALOG) themselves). These
+// still go through WonLockResource, so an encrypted template that fails to
+// decrypt is handled the same fail-closed way as the non-Indirect forms.
+INT_PTR WONAPI WonDialogBoxIndirectParamA(HINSTANCE hInstance, HGLOBAL hDialogTemplate,
+                                          HWND hWndParent, DLGPROC lpDialogFunc,
+                                          LPARAM dwInitParam);
+INT_PTR WONAPI WonDialogBoxIndirectParamW(HINSTANCE hInstance, HGLOBAL hDialogTemplate,
+                                          HWND hWndParent, DLGPROC lpDialogFunc,
+                                          LPARAM dwInitParam);
+
+HWND WONAPI WonCreateDialogIndirectParamA(HINSTANCE hInstance, HGLOBAL hDialogTemplate,
+                                          HWND hWndParent, DLGPROC lpDialogFunc,
+                                          LPARAM dwInitParam);
+HWND WONAPI WonCreateDialogIndirectParamW(HINSTANCE hInstance, HGLOBAL hDialogTemplate,
+                                          HWND hWndParent, DLGPROC lpDialogFunc,
+                                          LPARAM dwInitParam);
+
+// Convenience wrappers matching plain DialogBox/CreateDialog (dwInitParam == 0)
+#define WonDialogBoxA(hInstance, lpTemplateName, hWndParent, lpDialogFunc) \
+    WonDialogBoxParamA(hInstance, lpTemplateName, hWndParent, lpDialogFunc, 0)
+#define WonDialogBoxW(hInstance, lpTemplateName, hWndParent, lpDialogFunc) \
+    WonDialogBoxParamW(hInstance, lpTemplateName, hWndParent, lpDialogFunc, 0)
+#define WonCreateDialogA(hInstance, lpTemplateName, hWndParent, lpDialogFunc) \
+    WonCreateDialogParamA(hInstance, lpTemplateName, hWndParent, lpDialogFunc, 0)
+#define WonCreateDialogW(hInstance, lpTemplateName, hWndParent, lpDialogFunc) \
+    WonCreateDialogParamW(hInstance, lpTemplateName, hWndParent, lpDialogFunc, 0)
+#define WonDialogBoxIndirectA(hInstance, hDialogTemplate, hWndParent, lpDialogFunc) \
+    WonDialogBoxIndirectParamA(hInstance, hDialogTemplate, hWndParent, lpDialogFunc, 0)
+#define WonDialogBoxIndirectW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc) \
+    WonDialogBoxIndirectParamW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc, 0)
+#define WonCreateDialogIndirectA(hInstance, hDialogTemplate, hWndParent, lpDialogFunc) \
+    WonCreateDialogIndirectParamA(hInstance, hDialogTemplate, hWndParent, lpDialogFunc, 0)
+#define WonCreateDialogIndirectW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc) \
+    WonCreateDialogIndirectParamW(hInstance, hDialogTemplate, hWndParent, lpDialogFunc, 0)
+
 // Frees a buffer returned by WonLoadResource() for an *encrypted* resource
 // (decryption allocates a fresh heap buffer instead of aliasing the image).
 // Safe/no-op to call on NULL. Not calling it just leaks until process exit,
@@ -112,6 +161,14 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonEndUpdateResource WonEndUpdateResourceW
 #define WonLoadString WonLoadStringW
 #define WonLoadBitmap WonLoadBitmapW
+#define WonDialogBoxParam WonDialogBoxParamW
+#define WonCreateDialogParam WonCreateDialogParamW
+#define WonDialogBoxIndirectParam WonDialogBoxIndirectParamW
+#define WonCreateDialogIndirectParam WonCreateDialogIndirectParamW
+#define WonDialogBox WonDialogBoxW
+#define WonCreateDialog WonCreateDialogW
+#define WonDialogBoxIndirect WonDialogBoxIndirectW
+#define WonCreateDialogIndirect WonCreateDialogIndirectW
 #else
 #define WonEnumResourceTypes WonEnumResourceTypesA
 #define WonEnumResourceNames WonEnumResourceNamesA
@@ -123,6 +180,14 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #define WonEndUpdateResource WonEndUpdateResourceA
 #define WonLoadString WonLoadStringA
 #define WonLoadBitmap WonLoadBitmapA
+#define WonDialogBoxParam WonDialogBoxParamA
+#define WonCreateDialogParam WonCreateDialogParamA
+#define WonDialogBoxIndirectParam WonDialogBoxIndirectParamA
+#define WonCreateDialogIndirectParam WonCreateDialogIndirectParamA
+#define WonDialogBox WonDialogBoxA
+#define WonCreateDialog WonCreateDialogA
+#define WonDialogBoxIndirect WonDialogBoxIndirectA
+#define WonCreateDialogIndirect WonCreateDialogIndirectA
 #endif
 
 #ifdef __cplusplus

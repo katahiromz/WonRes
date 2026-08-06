@@ -36,6 +36,11 @@ BOOL WONAPI WonUpdateResource(
 INT WONAPI WonLoadString(HINSTANCE hInstance, UINT uID, LPTSTR lpBuffer, INT nBufferMax);
 HBITMAP WONAPI WonLoadBitmap(HINSTANCE hInstance, LPCTSTR lpBitmapName);
 
+INT_PTR WONAPI WonDialogBox(HINSTANCE hInstance, LPCTSTR lpTemplateName, HWND hWndParent,
+                            DLGPROC lpDialogFunc);
+HWND WONAPI WonCreateDialog(HINSTANCE hInstance, LPCTSTR lpTemplateName, HWND hWndParent,
+                            DLGPROC lpDialogFunc);
+
 BOOL WONAPI WonFreeResource(HGLOBAL hGlobal);
 ```
 
