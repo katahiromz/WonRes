@@ -125,7 +125,7 @@
 #define EnumResourceNamesW WonEnumResourceNamesW
 #define EnumResourceTypes WonEnumResourceTypes
 #define EnumResourceTypesA WonEnumResourceTypesA
-#define EnumResourceTypesW WonEnumResourceTypesA
+#define EnumResourceTypesW WonEnumResourceTypesW
 #define FindResource WonFindResource
 #define FindResourceA WonFindResourceA
 #define FindResourceEx WonFindResourceEx
@@ -146,8 +146,8 @@
 #define LoadCursorA WonLoadCursorA
 #define LoadCursorW WonLoadCursorW
 #define LoadIcon WonLoadIcon
-#define LoadIconA Won
-#define LoadIconW WonLoadIconA
+#define LoadIconA WonLoadIconA
+#define LoadIconW WonLoadIconW
 #define LoadImage WonLoadImage
 #define LoadImageA WonLoadImageA
 #define LoadImageW WonLoadImageW
@@ -158,7 +158,7 @@
 #define LoadMenuIndirectW(lpMenuTemplate) WonLoadMenuIndirectW((const MENUTEMPLATEW*)(lpMenuTemplate))
 #define LoadMenuW WonLoadMenuW
 #define LoadResource WonLoadResource
-#define LoadString Won
+#define LoadString WonLoadString
 #define LoadStringA WonLoadStringA
 #define LoadStringW WonLoadStringW
 #define LockResource WonLockResource
