@@ -40,12 +40,16 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
         // via (LPWSTR *)lpBuffer, matching real LoadStringW's own
         // undocumented behavior. That pointer has to stay valid *after*
         // we return, so hGlobal must NOT be freed here.
+        //
+        // Plaintext: p aliases the module image -- safe.
+        // Encrypted: p is a heap buffer; keeping it alive is an intentional
+        // leak until process exit. In debug builds we assert so the caller
+        // notices; in release we allow the leak (same as classic LoadStringW
+        // semantics for this undocumented path).
 #if defined(WONRES_ENABLE_CRYPTO) && !defined(NDEBUG)
         if (WonCryptIsOwnedBuffer(hGlobal))
         {
-            assert(0); // We warned!
-            if (nBufferMax > 1)
-                lpBuffer[0] = UNICODE_NULL;
+            assert(0 && "WonLoadStringW(nBufferMax==0) with encrypted resource");
             WonFreeResource(hGlobal);
             return 0;
         }
