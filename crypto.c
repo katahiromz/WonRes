@@ -59,15 +59,31 @@ typedef struct {
 #pragma pack(pop)
 
 static CRITICAL_SECTION g_KeyCS;
-static BOOL g_bCSInit = FALSE;
+static LONG g_lKeyCSState = 0; // 0=uninit, 1=another thread is initializing, 2=ready
 static BYTE g_abKey[WON_ENCRYPTION_KEY_SIZE];
 static BOOL g_bKeySet = FALSE;
 
+// XP-safe (no InitOnceExecuteOnce, which is Vista+) double-checked init.
+// The naive "if (!g_bCSInit) { InitializeCriticalSection(...); g_bCSInit =
+// TRUE; }" this replaced had a real race: two threads calling this for the
+// very first time concurrently could both see g_bCSInit == FALSE and both
+// call InitializeCriticalSection on the same object, which is undefined
+// behavior. This is a plausible hot path (WonSetEncryptionKey,
+// WonLoadResource/WonFreeResource via EnsureAllocCS below), not just a
+// theoretical concern. InterlockedCompareExchange(&x, v, v) is used purely
+// as an atomic *read* of x (it always returns the pre-operation value,
+// and only ever writes v back over an existing v, i.e. a no-op) since XP
+// predates a dedicated atomic-load primitive.
 static void EnsureCS(void)
 {
-    if (!g_bCSInit) {
+    if (InterlockedCompareExchange(&g_lKeyCSState, 1, 0) == 0) {
+        // We're the thread that won the 0->1 transition: do the real init.
         InitializeCriticalSection(&g_KeyCS);
-        g_bCSInit = TRUE;
+        InterlockedExchange(&g_lKeyCSState, 2);
+    } else {
+        // Someone else is (or already did) initialize it -- wait for them.
+        while (InterlockedCompareExchange(&g_lKeyCSState, 2, 2) != 2)
+            Sleep(0);
     }
 }
 
@@ -90,14 +106,18 @@ typedef struct WON_ALLOC_NODE {
 } WON_ALLOC_NODE, *PWON_ALLOC_NODE;
 
 static CRITICAL_SECTION g_AllocCS;
-static BOOL g_bAllocCSInit = FALSE;
+static LONG g_lAllocCSState = 0; // 0=uninit, 1=another thread is initializing, 2=ready
 static PWON_ALLOC_NODE g_pAllocList = NULL;
 
+// Same XP-safe double-checked init as EnsureCS() above -- see its comment.
 static void EnsureAllocCS(void)
 {
-    if (!g_bAllocCSInit) {
+    if (InterlockedCompareExchange(&g_lAllocCSState, 1, 0) == 0) {
         InitializeCriticalSection(&g_AllocCS);
-        g_bAllocCSInit = TRUE;
+        InterlockedExchange(&g_lAllocCSState, 2);
+    } else {
+        while (InterlockedCompareExchange(&g_lAllocCSState, 2, 2) != 2)
+            Sleep(0);
     }
 }
 

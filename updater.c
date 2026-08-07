@@ -640,10 +640,19 @@ static BOOL CALLBACK LoadExistingResProc(HMODULE hMod, LPCWSTR lpType, LPCWSTR l
     if (hRes) {
         DWORD size = WonSizeofResource(hMod, hRes);
         HGLOBAL hGlobal = WonLoadResource(hMod, hRes);
-        LPVOID pData = WonLockResource(hGlobal);
-        if (!pData)
+        if (!hGlobal)
             return FALSE;
-        return WonUpdateResourceW(hUpdate, lpType, lpName, wLang, pData, size);
+
+        LPVOID pData = WonLockResource(hGlobal);
+        BOOL bOk = pData && WonUpdateResourceW(hUpdate, lpType, lpName, wLang, pData, size);
+
+        // pData either aliases the module image (nothing to free) or, if
+        // this source module itself has WonRes-encrypted resources, is a
+        // decrypted heap buffer -- either way WonUpdateResourceW above has
+        // already copied whatever it needed out of pData, so it's safe to
+        // release now regardless of success/failure.
+        WonFreeResource(hGlobal);
+        return bOk;
     }
     return TRUE;
 }
@@ -674,9 +683,15 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
 
     pUpdate->pFileName = DuplicateString(pFileName);
     pUpdate->bDeleteExisting = bDeleteExistingResources;
+    if (!pUpdate->pFileName)
+    {
+        HeapFree(GetProcessHeap(), 0, pUpdate);
+        return NULL;
+    }
 
     HMODULE hMod = LoadLibraryExW(pFileName, NULL, LOAD_LIBRARY_AS_DATAFILE);
     if (!hMod) {
+        HeapFree(GetProcessHeap(), 0, pUpdate->pFileName);
         HeapFree(GetProcessHeap(), 0, pUpdate);
         return NULL;
     }
@@ -684,7 +699,13 @@ HANDLE WONAPI WonBeginUpdateResourceW(LPCWSTR pFileName, BOOL bDeleteExistingRes
     if (!bDeleteExistingResources) {
         // 既存のリソースをすべて内部リストにロードする
         if (!WonEnumResourceTypesW(hMod, LoadExistingTypesProc, (LONG_PTR)pUpdate)) {
-            HeapFree(GetProcessHeap(), 0, pUpdate);
+            FreeLibrary(hMod);
+            // WonEndUpdateResourceW(..., fDiscard=TRUE) と同じ後始末を
+            // 借りて中断する: pFileName に加え、失敗するまでに部分的に
+            // 集まっていた pEntries（type/name/data 込み）も一緒に、漏れなく
+            // 解放できる。以前はここで pUpdate 自体しか解放しておらず、
+            // pFileName・pEntries・hMod (FreeLibrary 漏れ) がリークしていた。
+            WonEndUpdateResourceW((HANDLE)pUpdate, TRUE);
             return NULL;
         }
     }
