@@ -5,7 +5,7 @@
 #pragma once
 
 #ifndef __WONRES__
-#define __WONRES__ 22
+#define __WONRES__
 
 #ifdef __cplusplus
 extern "C" {
@@ -213,8 +213,9 @@ BOOL WONAPI WonFreeResource(HGLOBAL hGlobal);
 // output. Callers are responsible for provisioning/storing the key or
 // password securely; this library only protects the resource *data*.
 
-#define WON_ENCRYPTION_KEY_SIZE       32      // AES-256
-#define WON_ENCRYPTION_MIN_ITERATIONS 100000  // minimum PBKDF2 iterations enforced
+#define WON_CRYPT_MAGIC               "WONRSRC1" // 8 bytes, no NUL terminator stored
+#define WON_ENCRYPTION_KEY_SIZE       32         // AES-256
+#define WON_ENCRYPTION_MIN_ITERATIONS 100000     // minimum PBKDF2 iterations enforced
 
 BOOL WONAPI WonSetEncryptionKey(const BYTE *pbKey, DWORD cbKey);
 BOOL WONAPI WonSetEncryptionPasswordA(LPCSTR pszPassword, const BYTE *pbSalt, DWORD cbSalt,

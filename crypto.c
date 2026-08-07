@@ -34,7 +34,6 @@
 #define MS_ENH_RSA_AES_PROV_W L"Microsoft Enhanced RSA and AES Cryptographic Provider"
 #endif
 
-#define WON_CRYPT_MAGIC        "WONRSRC1" // 8 bytes, no NUL terminator stored
 #define WON_CRYPT_VERSION      2          // 2 = CBC+HMAC (XP); 1 was GCM (Vista+)
 #define WON_CRYPT_IV_SIZE      16
 #define WON_CRYPT_MAC_SIZE     32         // HMAC-SHA256
