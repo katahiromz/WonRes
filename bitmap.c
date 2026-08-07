@@ -50,10 +50,55 @@ static HBITMAP WonpBuildBitmapFromResource(HMODULE hModule, HRSRC hrsrc)
 				HDC hdc = GetDC(NULL);
 				if (hdc)
 				{
-					// CreateDIBitmap goes through GDI's normal DIB engine, so
-					// it decodes BI_RLE4/BI_RLE8 source data transparently --
-					// no special-casing needed here for RLE-compressed bitmaps.
-					hbm = CreateDIBitmap(hdc, pbmih, CBM_INIT, pbBits, pbmi, DIB_RGB_COLORS);
+					BOOL fCompressed = (pbmih->biCompression == BI_RLE4 ||
+					                    pbmih->biCompression == BI_RLE8);
+					if (fCompressed)
+					{
+						// CreateDIBitmap builds a bitmap matching the
+						// *current display*, so GDI has to color-match
+						// every decoded pixel against whatever the display
+						// can currently show -- on anything other than a
+						// plain truecolor desktop that shows up as
+						// washed-out/blotchy colors. Decode straight into
+						// a DIB section of our own choosing (24-bit
+						// BI_RGB) via SetDIBits instead, so GDI converts
+						// each palette entry straight to its exact RGB
+						// value with no device-dependent approximation.
+						BITMAPINFOHEADER bmihDst = { sizeof(bmihDst) };
+						bmihDst.biWidth = pbmih->biWidth;
+						bmihDst.biHeight = pbmih->biHeight;
+						bmihDst.biPlanes = 1;
+						bmihDst.biBitCount = 24;
+						bmihDst.biCompression = BI_RGB;
+
+						LPVOID pvBits = NULL;
+						hbm = CreateDIBSection(hdc, (BITMAPINFO *)&bmihDst, DIB_RGB_COLORS,
+						                       &pvBits, NULL, 0);
+						if (hbm)
+						{
+							// lpbmi here is still the *source* description
+							// (pbmi, with its original biBitCount/
+							// biCompression/color table) -- SetDIBits
+							// decodes from that format into hbm's (the
+							// 24-bit target's).
+							if (!SetDIBits(hdc, hbm, 0, pbmih->biHeight, pbBits, pbmi,
+							               DIB_RGB_COLORS))
+							{
+								DeleteObject(hbm);
+								hbm = NULL;
+							}
+						}
+					}
+					else
+					{
+						// CreateDIBitmap goes through GDI's normal DIB
+						// engine, matching real LoadBitmap's own device-
+						// dependent-bitmap behavior for the uncompressed
+						// case (LoadBitmap has no DIB-section option at
+						// all -- it always returns a DDB).
+						hbm = CreateDIBitmap(hdc, pbmih, CBM_INIT, pbBits, pbmi, DIB_RGB_COLORS);
+					}
+
 					ReleaseDC(NULL, hdc);
 				}
 			}
@@ -61,8 +106,9 @@ static HBITMAP WonpBuildBitmapFromResource(HMODULE hModule, HRSRC hrsrc)
 	}
 
 	// Safe now in every case (success, or any of the checks above failing):
-	// CreateDIBitmap copies the pixel data into the new HBITMAP during the
-	// call and doesn't keep a reference to lpData/hglb afterwards.
+	// CreateDIBitmap/CreateDIBSection+SetDIBits both copy the pixel data
+	// into the new HBITMAP during the call and don't keep a reference to
+	// lpData/hglb afterwards.
 	WonFreeResource(hglb);
 
 	return hbm;

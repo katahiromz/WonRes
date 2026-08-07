@@ -73,20 +73,53 @@ static HBITMAP CreateBitmapFromResourceBits(LPBYTE pResData, DWORD cbResData, UI
     // CreateDIBSection hands back a raw pixel buffer sized/strided from
     // biWidth/biBitCount directly -- it does not decode BI_RLE4/BI_RLE8,
     // so copying compressed source bytes into it would just corrupt the
-    // image. CreateDIBitmap, on the other hand, goes through GDI's normal
-    // DIB engine and decodes RLE transparently. So RLE-compressed source
-    // data always goes through CreateDIBitmap, regardless of whether the
-    // caller asked for LR_CREATEDIBSECTION.
+    // image. So RLE-compressed source data never takes that path below.
     BOOL fCompressed = (pbmi->bmiHeader.biCompression == BI_RLE8 ||
                         pbmi->bmiHeader.biCompression == BI_RLE4);
 
     HBITMAP hbm;
-    if ((fuLoad & LR_CREATEDIBSECTION) && !fCompressed) {
+    if (fCompressed && (fuLoad & LR_CREATEDIBSECTION)) {
+        // The caller explicitly asked for a DIB section -- i.e. exact
+        // colors, no device-dependent approximation. CreateDIBitmap below
+        // builds a bitmap matching the *current display*, so GDI has to
+        // color-match every decoded pixel against whatever the display can
+        // currently show -- on anything other than a plain truecolor
+        // desktop (a palettized/limited-color device, a remote session,
+        // ...) that shows up as washed-out/blotchy colors, and it isn't
+        // even a DIB section as requested. Decode straight into a DIB
+        // section of our own choosing (24-bit BI_RGB) via SetDIBits
+        // instead, so GDI converts each palette entry straight to its
+        // exact RGB value with no device-dependent approximation involved.
+        BITMAPINFOHEADER bmihDst = { sizeof(bmihDst) };
+        bmihDst.biWidth = pbmi->bmiHeader.biWidth;
+        bmihDst.biHeight = pbmi->bmiHeader.biHeight;
+        bmihDst.biPlanes = 1;
+        bmihDst.biBitCount = 24;
+        bmihDst.biCompression = BI_RGB;
+
+        LPVOID pvBits = NULL;
+        hbm = CreateDIBSection(hdcScreen, (LPBITMAPINFO)&bmihDst, DIB_RGB_COLORS, &pvBits, NULL,
+                               0);
+        if (hbm) {
+            // lpbmi here is still the *source* description (pbmi, with its
+            // original biBitCount/biCompression/color table) -- SetDIBits
+            // decodes from that format into hbm's (the 24-bit target's).
+            if (!SetDIBits(hdcScreen, hbm, 0, pbmi->bmiHeader.biHeight, pBits, pbmi,
+                           DIB_RGB_COLORS)) {
+                DeleteObject(hbm);
+                hbm = NULL;
+            }
+        }
+    } else if ((fuLoad & LR_CREATEDIBSECTION) && !fCompressed) {
         LPVOID pvBits = NULL;
         hbm = CreateDIBSection(hdcScreen, pbmi, DIB_RGB_COLORS, &pvBits, NULL, 0);
         if (hbm && pvBits)
             CopyMemory(pvBits, pBits, cbResData - cbHeaderAndColors);
     } else {
+        // No LR_CREATEDIBSECTION: the caller gets a genuine device-
+        // dependent bitmap, same as real LoadImage's default (non-DIB-
+        // section) behavior -- including its color-matching against the
+        // current display, which is expected here, not a bug.
         hbm = CreateDIBitmap(hdcScreen, &pbmi->bmiHeader, CBM_INIT, pBits, pbmi, DIB_RGB_COLORS);
     }
 
