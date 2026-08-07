@@ -1,4 +1,4 @@
-// WinResToWon.h --- Replace Win32 resource functions with WonRes functions
+// WinResToWonRes.h --- Replace Win32 resource functions with WonRes functions
 // Author: katahiromz
 // License: MIT
 #pragma once
