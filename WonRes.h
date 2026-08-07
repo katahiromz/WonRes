@@ -4,6 +4,9 @@
 
 #pragma once
 
+#ifndef __WONRES__
+#define __WONRES__ 19
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -292,3 +295,5 @@ BOOL WONAPI WonUpdateResourceEncryptedW(HANDLE hUpdate, LPCWSTR lpType, LPCWSTR 
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+#endif // ndef __WONRES__
