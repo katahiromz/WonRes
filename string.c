@@ -4,6 +4,7 @@
 #include <windows.h>
 #include <imagehlp.h>
 #include <string.h>
+#include <assert.h>
 #include "WonRes.h"
 
 INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax)
@@ -42,6 +43,9 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
         // buffer, and freeing it now would hand the caller a dangling
         // pointer. This one path intentionally leaks until process exit,
         // exactly as documented on WonFreeResource() in WonRes.h.
+#ifdef WONRES_ENABLE_CRYPTO
+        assert(0);
+#endif
         *((LPWSTR *)lpBuffer) = p + 1;
         return *p;
     }
