@@ -161,6 +161,26 @@ static BOOL UntrackAllocatedBuffer(LPVOID pMemory)
     return bFound;
 }
 
+// Non-destructive check: is pMemory still on the ownership list?
+BOOL WonCryptIsOwnedBuffer(LPVOID pMemory)
+{
+    BOOL bFound = FALSE;
+
+    if (!pMemory)
+        return FALSE;
+
+    EnsureAllocCS();
+    EnterCriticalSection(&g_AllocCS);
+    for (PWON_ALLOC_NODE p = g_pAllocList; p; p = p->pNext) {
+        if (p->pMemory == pMemory) {
+            bFound = TRUE;
+            break;
+        }
+    }
+    LeaveCriticalSection(&g_AllocCS);
+    return bFound;
+}
+
 static BOOL GetActiveKey(BYTE abKeyOut[WON_ENCRYPTION_KEY_SIZE])
 {
     BOOL bSet;

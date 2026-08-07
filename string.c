@@ -6,6 +6,9 @@
 #include <string.h>
 #include <assert.h>
 #include "WonRes.h"
+#ifdef WONRES_ENABLE_CRYPTO
+    #include "WonCryptoP.h"
+#endif
 
 INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nBufferMax)
 {
@@ -36,15 +39,16 @@ INT WONAPI WonLoadStringW(HINSTANCE hInstance, UINT uID, LPWSTR lpBuffer, INT nB
         // Special case: return a pointer straight into the resource data
         // via (LPWSTR *)lpBuffer, matching real LoadStringW's own
         // undocumented behavior. That pointer has to stay valid *after*
-        // we return, so -- unlike every other path here -- hGlobal must
-        // NOT be freed: for a plaintext resource p just aliases the
-        // module image and never needed freeing anyway, but for an
-        // *encrypted* one p is the (otherwise-orphaned) decrypted heap
-        // buffer, and freeing it now would hand the caller a dangling
-        // pointer. This one path intentionally leaks until process exit,
-        // exactly as documented on WonFreeResource() in WonRes.h.
-#ifdef WONRES_ENABLE_CRYPTO
-        assert(0);
+        // we return, so hGlobal must NOT be freed here.
+#if defined(WONRES_ENABLE_CRYPTO) && !defined(NDEBUG)
+        if (WonCryptIsOwnedBuffer(hGlobal))
+        {
+            assert(0); // We warned!
+            if (nBufferMax > 1)
+                lpBuffer[0] = UNICODE_NULL;
+            WonFreeResource(hGlobal);
+            return 0;
+        }
 #endif
         *((LPWSTR *)lpBuffer) = p + 1;
         return *p;

@@ -25,6 +25,11 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DW
 
 DWORD WonCryptPeekPlainSize(const BYTE *pbBlob, DWORD cbBlob);
 
+// Returns TRUE if pMemory is a buffer that WonCryptDecryptBuffer allocated
+// and is still registered for WonFreeResource. Does not untrack or free.
+// Safe to call with any pointer (including NULL / module-image pointers).
+BOOL WonCryptIsOwnedBuffer(LPVOID pMemory);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
