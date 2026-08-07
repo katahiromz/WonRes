@@ -1,11 +1,11 @@
-// WonRes.h --- Win32 resource loader
+// WonRes.h --- Win32 resource manipulator (loader/updater/encrypter)
 // Author: katahiromz
 // License: MIT
 
 #pragma once
 
 #ifndef __WONRES__
-#define __WONRES__ 19
+#define __WONRES__ 22
 
 #ifdef __cplusplus
 extern "C" {
