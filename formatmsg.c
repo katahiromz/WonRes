@@ -37,19 +37,24 @@ static PMESSAGE_RESOURCE_ENTRY FindMessageEntry(PMESSAGE_RESOURCE_DATA pData, DW
 
     for (DWORD i = 0; i < pData->NumberOfBlocks; i++) {
         const MESSAGE_RESOURCE_BLOCK *pBlock = &pData->Blocks[i];
+        if (pBlock->LowId > pBlock->HighId)
+            continue; // malformed/tampered block
         if (dwMessageId < pBlock->LowId || dwMessageId > pBlock->HighId)
             continue;
 
-        // Entries for LowId..HighId are packed back-to-back with no gaps;
-        // walk them one by one until we reach dwMessageId.
+        // Entries for LowId..HighId are packed back-to-back with no gaps,
+        // so the target is exactly (dwMessageId - LowId) entries in. Walk
+        // that many -- bounded by dwMessageId itself, not by HighId -- so
+        // a malformed/tampered HighId of 0xFFFFFFFF can't make `id <=
+        // HighId` true forever by wrapping id back around through 0 after
+        // it overflows (which the previous id-based loop was exposed to).
+        DWORD count = dwMessageId - pBlock->LowId;
         PBYTE p = (PBYTE)pData + pBlock->OffsetToEntries;
-        for (DWORD id = pBlock->LowId; id <= pBlock->HighId; id++) {
+        for (DWORD n = 0; n < count; n++) {
             PMESSAGE_RESOURCE_ENTRY pEntry = (PMESSAGE_RESOURCE_ENTRY)p;
-            if (id == dwMessageId)
-                return pEntry;
             p += pEntry->Length;
         }
-        break; // IDs never appear in more than one block
+        return (PMESSAGE_RESOURCE_ENTRY)p;
     }
 
     return NULL;
