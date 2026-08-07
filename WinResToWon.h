@@ -1,6 +1,6 @@
 // WinResToWon.h --- Replace Win32 resource functions with WonRes functions
 // Author: katahiromz
-// License: GPL v3
+// License: MIT
 #pragma once
 
 #ifndef __WONRES__
