@@ -15,3 +15,4 @@ WonEndUpdateResourceW(h, FALSE);
 HRSRC hRsrc = WonFindResourceW(hMod, MAKEINTRESOURCEW(1), RT_RCDATA);
 HGLOBAL hRes = WonLoadResource(hMod, hRsrc);
 LPVOID p = WonLockResource(hRes); // 鍵が違う/未設定ならNULL
+WonFreeResource(hRsrc);
