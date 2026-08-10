@@ -212,8 +212,19 @@ BOOL WONAPI WonFreeResource(HGLOBAL hGlobal);
 // fresh random nonce, so encrypting identical data twice yields different
 // output. Callers are responsible for provisioning/storing the key or
 // password securely; this library only protects the resource *data*.
+//
+// Before encrypting, WonCryptEncryptBuffer tries to LZNT1-compress the
+// resource. If that shrinks it, the compressed bytes are what gets
+// encrypted and the blob is tagged with the WON_CRYPT_MAGIC_COMPRESSED
+// ("WONRSRC2") header instead of WON_CRYPT_MAGIC ("WONRSRC1"); decryption
+// transparently decompresses afterward, so callers never see a difference
+// beyond a smaller resource on disk. Data that doesn't compress (already
+// compressed images, small resources, etc.) is simply stored uncompressed
+// under the original "WONRSRC1" tag -- this is an automatic, per-resource
+// decision, not something callers configure.
 
-#define WON_CRYPT_MAGIC               "WONRSRC1" // 8 bytes, no NUL terminator stored
+#define WON_CRYPT_MAGIC               "WONRSRC1" // 8 bytes, no NUL terminator stored -- plain (uncompressed) ciphertext
+#define WON_CRYPT_MAGIC_COMPRESSED    "WONRSRC2" // 8 bytes, no NUL terminator stored -- LZNT1-compressed before encryption
 #define WON_ENCRYPTION_KEY_SIZE       32         // AES-256
 #define WON_ENCRYPTION_MIN_ITERATIONS 100000     // minimum PBKDF2 iterations enforced
 

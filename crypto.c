@@ -3,7 +3,10 @@
 // License: MIT
 //
 // Uses CryptoAPI (advapi32) so it runs on Windows XP and later.
-// Scheme: AES-256-CBC + HMAC-SHA256 (encrypt-then-MAC).
+// Scheme: LZNT1 compression (opportunistic) + AES-256-CBC + HMAC-SHA256
+// (encrypt-then-MAC). Compression uses ntdll's RtlCompressBuffer /
+// RtlDecompressBuffer, which -- like CryptoAPI -- have been present since
+// NT4/XP, so the XP-compatibility story is unchanged.
 // Blob format version 2 (incompatible with the Vista+ GCM version 1).
 #include <windows.h>
 #include <wincrypt.h>
@@ -33,6 +36,12 @@
 #ifndef MS_ENH_RSA_AES_PROV_W
 #define MS_ENH_RSA_AES_PROV_W L"Microsoft Enhanced RSA and AES Cryptographic Provider"
 #endif
+#ifndef COMPRESSION_FORMAT_LZNT1
+#define COMPRESSION_FORMAT_LZNT1 (0x0002)
+#endif
+#ifndef COMPRESSION_ENGINE_MAXIMUM
+#define COMPRESSION_ENGINE_MAXIMUM (0x0100)
+#endif
 
 #define WON_CRYPT_VERSION      2          // 2 = CBC+HMAC (XP); 1 was GCM (Vista+)
 #define WON_CRYPT_IV_SIZE      16
@@ -45,7 +54,18 @@ typedef struct WON_CRYPT_HEADER {
     BYTE  abReserved[3];
     BYTE  abIV[WON_CRYPT_IV_SIZE];
     BYTE  abMac[WON_CRYPT_MAC_SIZE];
-    DWORD cbPlain;
+    DWORD cbPlain;      // size of the data actually AES-encrypted: the
+                         // LZNT1-compressed payload size when szMagic is
+                         // WON_CRYPT_MAGIC_COMPRESSED, otherwise equal to
+                         // cbOriginal below.
+    DWORD cbOriginal;   // true original (pre-compression) resource size.
+                         // Only meaningful/used when szMagic is
+                         // WON_CRYPT_MAGIC_COMPRESSED; mirrors cbPlain
+                         // otherwise. Both DWORDs are covered by the MAC,
+                         // and cbPlain must come right before cbOriginal,
+                         // which must come right before the ciphertext --
+                         // see the HmacSha256 calls below, which read them
+                         // as one contiguous region.
 } WON_CRYPT_HEADER, *PWON_CRYPT_HEADER;
 #pragma pack(pop)
 
@@ -434,8 +454,10 @@ BOOL WonCryptIsEncryptedBlob(const BYTE *pbData, DWORD cbData)
     // every caller downstream to read past the end of its buffer.
     if (!pbData || cbData < sizeof(WON_CRYPT_HEADER))
         return FALSE;
-    return memcmp(pbData, WON_CRYPT_MAGIC, sizeof(WON_CRYPT_MAGIC) - 1) == 0 &&
-           pbData[8] == WON_CRYPT_VERSION;
+    if (pbData[8] != WON_CRYPT_VERSION)
+        return FALSE;
+    return memcmp(pbData, WON_CRYPT_MAGIC, sizeof(WON_CRYPT_MAGIC) - 1) == 0 ||
+           memcmp(pbData, WON_CRYPT_MAGIC_COMPRESSED, sizeof(WON_CRYPT_MAGIC_COMPRESSED) - 1) == 0;
 }
 
 // Bounds-checked peek at an encrypted blob's declared plaintext size. This
@@ -453,6 +475,16 @@ DWORD WonCryptPeekPlainSize(const BYTE *pbBlob, DWORD cbBlob)
     DWORD cbPlain = pHeader->cbPlain;
     if (cbPlain > cbBlob - sizeof(WON_CRYPT_HEADER))
         return 0;
+
+    if (memcmp(pHeader->szMagic, WON_CRYPT_MAGIC_COMPRESSED, sizeof(pHeader->szMagic)) == 0) {
+        // Compressed: the true plaintext is the *decompressed* size, which
+        // (unlike cbPlain above) can legitimately be larger than the blob
+        // itself, so it can't be bounds-checked against cbBlob the same
+        // way. This is still just an unauthenticated peek at an untrusted
+        // header field -- callers that need a guarantee must go through
+        // WonCryptDecryptBuffer, which verifies the MAC before trusting it.
+        return pHeader->cbOriginal;
+    }
     return cbPlain;
 }
 
@@ -476,6 +508,119 @@ static void DeriveMacKey(const BYTE abEncKey[32], BYTE abMacKey[32])
     CryptReleaseContext(hProv, 0);
 }
 
+// ---------------------------------------------------------------------------
+// Opportunistic LZNT1 compression (ntdll, present since NT4/XP)
+// ---------------------------------------------------------------------------
+// RtlCompressBuffer/RtlDecompressBuffer aren't declared in <windows.h>, so
+// they're resolved dynamically -- same pattern as AcquireAesProvider's
+// provider-name fallback chain above. ntdll.dll is always already loaded
+// in-process, so GetModuleHandle (not LoadLibrary) is enough here.
+typedef LONG (WINAPI *PFN_RtlGetCompressionWorkSpaceSize)(USHORT CompressionFormatAndEngine,
+                                                           PULONG pcbWorkSpace,
+                                                           PULONG pcbFragmentWorkSpace);
+typedef LONG (WINAPI *PFN_RtlCompressBuffer)(USHORT CompressionFormatAndEngine,
+                                             PUCHAR pbUncompressed, ULONG cbUncompressed,
+                                             PUCHAR pbCompressed, ULONG cbCompressed,
+                                             ULONG cbChunk, PULONG pcbFinal, PVOID pWorkSpace);
+typedef LONG (WINAPI *PFN_RtlDecompressBuffer)(USHORT CompressionFormat,
+                                               PUCHAR pbUncompressed, ULONG cbUncompressed,
+                                               PUCHAR pbCompressed, ULONG cbCompressed,
+                                               PULONG pcbFinal);
+
+// Compresses pbSrc with LZNT1. Only succeeds (returns TRUE) if the data is
+// genuinely compressible, i.e. the compressed result is strictly smaller
+// than cbSrc -- that's the "if it's compressible, compress it" contract:
+// callers fall back to storing the data uncompressed on FALSE, whether that
+// FALSE is because ntdll's compressor isn't available, the data has no
+// redundancy to exploit, or cbSrc is 0. Caller HeapFree's *ppbDst on TRUE.
+static BOOL CompressBufferLznt1(const BYTE *pbSrc, DWORD cbSrc, BYTE **ppbDst, DWORD *pcbDst)
+{
+    *ppbDst = NULL;
+    *pcbDst = 0;
+    if (!pbSrc || cbSrc == 0)
+        return FALSE;
+
+    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
+    if (!hNtdll)
+        return FALSE;
+
+    PFN_RtlGetCompressionWorkSpaceSize pfnWorkSpaceSize =
+        (PFN_RtlGetCompressionWorkSpaceSize)GetProcAddress(hNtdll, "RtlGetCompressionWorkSpaceSize");
+    PFN_RtlCompressBuffer pfnCompress =
+        (PFN_RtlCompressBuffer)GetProcAddress(hNtdll, "RtlCompressBuffer");
+    if (!pfnWorkSpaceSize || !pfnCompress)
+        return FALSE;
+
+    ULONG cbWorkSpace = 0, cbFragWorkSpace = 0;
+    USHORT wFormat = (USHORT)(COMPRESSION_FORMAT_LZNT1 | COMPRESSION_ENGINE_MAXIMUM);
+    if (pfnWorkSpaceSize(wFormat, &cbWorkSpace, &cbFragWorkSpace) != 0)
+        return FALSE;
+
+    PVOID pWorkSpace = HeapAlloc(GetProcessHeap(), 0, cbWorkSpace ? cbWorkSpace : 1);
+    if (!pWorkSpace)
+        return FALSE;
+
+    // We only ever want the compressed form when it's smaller than cbSrc
+    // (see the size check below), so a same-size scratch buffer is always
+    // big enough for any result we'd actually keep; if the real compressed
+    // size would exceed that, RtlCompressBuffer just fails with
+    // STATUS_BUFFER_TOO_SMALL, which we treat the same as "not
+    // compressible" and fall back to storing the data uncompressed.
+    PBYTE pbDst = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbSrc);
+    if (!pbDst) {
+        HeapFree(GetProcessHeap(), 0, pWorkSpace);
+        return FALSE;
+    }
+
+    ULONG cbFinal = 0;
+    LONG status = pfnCompress(wFormat, (PUCHAR)pbSrc, cbSrc, pbDst, cbSrc,
+                              4096, &cbFinal, pWorkSpace);
+    HeapFree(GetProcessHeap(), 0, pWorkSpace);
+
+    if (status != 0 || cbFinal == 0 || cbFinal >= cbSrc) {
+        HeapFree(GetProcessHeap(), 0, pbDst);
+        return FALSE;
+    }
+
+    *ppbDst = pbDst;
+    *pcbDst = (DWORD)cbFinal;
+    return TRUE;
+}
+
+// Decompresses an LZNT1 blob produced by CompressBufferLznt1 back to its
+// known original size cbOriginal (already MAC-authenticated by the caller
+// before this runs). Caller HeapFree's *ppbDst on TRUE.
+static BOOL DecompressBufferLznt1(const BYTE *pbSrc, DWORD cbSrc, DWORD cbOriginal, BYTE **ppbDst)
+{
+    *ppbDst = NULL;
+    if (cbOriginal == 0)
+        return FALSE;
+
+    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
+    if (!hNtdll)
+        return FALSE;
+
+    PFN_RtlDecompressBuffer pfnDecompress =
+        (PFN_RtlDecompressBuffer)GetProcAddress(hNtdll, "RtlDecompressBuffer");
+    if (!pfnDecompress)
+        return FALSE;
+
+    PBYTE pbDst = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbOriginal);
+    if (!pbDst)
+        return FALSE;
+
+    ULONG cbFinal = 0;
+    LONG status = pfnDecompress((USHORT)COMPRESSION_FORMAT_LZNT1, pbDst, cbOriginal,
+                                (PUCHAR)pbSrc, cbSrc, &cbFinal);
+    if (status != 0 || cbFinal != cbOriginal) {
+        HeapFree(GetProcessHeap(), 0, pbDst);
+        return FALSE;
+    }
+
+    *ppbDst = pbDst;
+    return TRUE;
+}
+
 BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, DWORD *pcbBlob)
 {
     if (!ppbBlob || !pcbBlob)
@@ -492,8 +637,19 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
     HCRYPTKEY hKey = 0;
     PBYTE pbBlob = NULL;
     BYTE abMacKey[32];
-    DWORD cbPad = 16 - (cbPlain % 16);
-    DWORD cbCipher = cbPlain + cbPad;
+
+    // Opportunistic compression: only kept if it actually shrinks the data
+    // (see CompressBufferLznt1). Whatever we end up encrypting -- the
+    // compressed bytes or the original plaintext -- is "the payload".
+    PBYTE pbCompressed = NULL;
+    DWORD cbCompressed = 0;
+    BOOL bCompressed = CompressBufferLznt1(pbPlain, cbPlain, &pbCompressed, &cbCompressed);
+
+    const BYTE *pbPayload = bCompressed ? pbCompressed : pbPlain;
+    DWORD cbPayload = bCompressed ? cbCompressed : cbPlain;
+
+    DWORD cbPad = 16 - (cbPayload % 16);
+    DWORD cbCipher = cbPayload + cbPad;
     DWORD cbBlob = sizeof(WON_CRYPT_HEADER) + cbCipher;
 
     if (!AcquireAesProvider(&hProv))
@@ -506,9 +662,11 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
         goto cleanup;
 
     PWON_CRYPT_HEADER pHeader = (PWON_CRYPT_HEADER)pbBlob;
-    CopyMemory(pHeader->szMagic, WON_CRYPT_MAGIC, sizeof(pHeader->szMagic));
+    CopyMemory(pHeader->szMagic, bCompressed ? WON_CRYPT_MAGIC_COMPRESSED : WON_CRYPT_MAGIC,
+              sizeof(pHeader->szMagic));
     pHeader->bVersion = WON_CRYPT_VERSION;
-    pHeader->cbPlain = cbPlain;
+    pHeader->cbPlain = cbPayload;
+    pHeader->cbOriginal = cbPlain;
 
     if (!CryptGenRandom(hProv, sizeof(pHeader->abIV), pHeader->abIV))
         goto cleanup;
@@ -517,9 +675,9 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
         goto cleanup;
 
     PBYTE pbCipher = pbBlob + sizeof(WON_CRYPT_HEADER);
-    if (cbPlain)
-        CopyMemory(pbCipher, pbPlain, cbPlain);
-    FillMemory(pbCipher + cbPlain, cbPad, (BYTE)cbPad);
+    if (cbPayload)
+        CopyMemory(pbCipher, pbPayload, cbPayload);
+    FillMemory(pbCipher + cbPayload, cbPad, (BYTE)cbPad);
 
     {
         // Final=FALSE: padding is applied manually above (PKCS7-style, fixed
@@ -534,13 +692,18 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
             goto cleanup;
     }
 
-    // Encrypt-then-MAC: MAC covers (magic..IV) || cbPlain || ciphertext
+    // Encrypt-then-MAC: MAC covers (magic..IV) || cbPlain || cbOriginal || ciphertext.
+    // cbPlain and cbOriginal are read as one contiguous region together with
+    // the ciphertext that immediately follows the header in memory.
     DeriveMacKey(abKey, abMacKey);
-    if (!HmacSha256(hProv, abMacKey, 32,
-                    pbBlob, FIELD_OFFSET(WON_CRYPT_HEADER, abMac),
-                    (BYTE *)&pHeader->cbPlain, sizeof(DWORD) + cbCipher,
-                    pHeader->abMac))
-        goto cleanup;
+    {
+        DWORD cbTail = sizeof(WON_CRYPT_HEADER) - FIELD_OFFSET(WON_CRYPT_HEADER, cbPlain);
+        if (!HmacSha256(hProv, abMacKey, 32,
+                        pbBlob, FIELD_OFFSET(WON_CRYPT_HEADER, abMac),
+                        (BYTE *)&pHeader->cbPlain, cbTail + cbCipher,
+                        pHeader->abMac))
+            goto cleanup;
+    }
 
     *ppbBlob = pbBlob;
     *pcbBlob = cbBlob;
@@ -548,6 +711,8 @@ BOOL WonCryptEncryptBuffer(const BYTE *pbPlain, DWORD cbPlain, BYTE **ppbBlob, D
     bResult = TRUE;
 
 cleanup:
+    if (pbCompressed)
+        HeapFree(GetProcessHeap(), 0, pbCompressed);
     if (pbBlob)
         HeapFree(GetProcessHeap(), 0, pbBlob);
     if (hKey)
@@ -571,7 +736,11 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DW
         return FALSE;
 
     PWON_CRYPT_HEADER pHeader = (PWON_CRYPT_HEADER)pbBlob;
-    DWORD cbPlain = pHeader->cbPlain;
+    BOOL bCompressed = (memcmp(pHeader->szMagic, WON_CRYPT_MAGIC_COMPRESSED,
+                               sizeof(pHeader->szMagic)) == 0);
+    DWORD cbPayload = pHeader->cbPlain; // size of the AES-encrypted payload:
+                                        // the LZNT1 payload if bCompressed,
+                                        // else the final plaintext itself.
 
     // pHeader->cbPlain is untrusted at this point -- we haven't verified
     // the MAC yet, so it may be attacker-controlled or simply corrupted.
@@ -580,13 +749,13 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DW
     // reads below. Previously an inflated cbPlain could make cbCipher
     // larger than the actual blob, causing HmacSha256 (and then
     // CopyMemory/CryptDecrypt) to read past the end of pbBlob.
-    if (cbPlain > cbBlob - sizeof(WON_CRYPT_HEADER)) {
+    if (cbPayload > cbBlob - sizeof(WON_CRYPT_HEADER)) {
         SecureZeroMemory(abKey, sizeof(abKey));
         return FALSE;
     }
 
-    DWORD cbPad = 16 - (cbPlain % 16);
-    DWORD cbCipher = cbPlain + cbPad;
+    DWORD cbPad = 16 - (cbPayload % 16);
+    DWORD cbCipher = cbPayload + cbPad;
 
     // The header must declare exactly the amount of ciphertext that's
     // actually present in this blob -- no more, no less.
@@ -598,20 +767,25 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DW
     BOOL bResult = FALSE;
     HCRYPTPROV hProv = 0;
     HCRYPTKEY hKey = 0;
-    PBYTE pbPlain = NULL;
+    PBYTE pbPayload = NULL; // decrypted payload -- still LZNT1-compressed if bCompressed
+    PBYTE pbFinal = NULL;   // final buffer handed back to the caller
     BYTE abMacKey[32];
     BYTE abComputedMac[32];
 
     if (!AcquireAesProvider(&hProv))
         goto cleanup;
 
-    // Verify MAC before any decryption (fail-closed)
+    // Verify MAC before any decryption (fail-closed). Covers cbPlain and
+    // cbOriginal together with the ciphertext -- see the encrypt side.
     DeriveMacKey(abKey, abMacKey);
-    if (!HmacSha256(hProv, abMacKey, 32,
-                    pbBlob, FIELD_OFFSET(WON_CRYPT_HEADER, abMac),
-                    (BYTE *)&pHeader->cbPlain, sizeof(DWORD) + cbCipher,
-                    abComputedMac))
-        goto cleanup;
+    {
+        DWORD cbTail = sizeof(WON_CRYPT_HEADER) - FIELD_OFFSET(WON_CRYPT_HEADER, cbPlain);
+        if (!HmacSha256(hProv, abMacKey, 32,
+                        pbBlob, FIELD_OFFSET(WON_CRYPT_HEADER, abMac),
+                        (BYTE *)&pHeader->cbPlain, cbTail + cbCipher,
+                        abComputedMac))
+            goto cleanup;
+    }
 
     {
         BYTE diff = 0;
@@ -627,45 +801,66 @@ BOOL WonCryptDecryptBuffer(const BYTE *pbBlob, DWORD cbBlob, BYTE **ppbPlain, DW
     if (!CryptSetKeyParam(hKey, KP_IV, (BYTE *)pHeader->abIV, 0))
         goto cleanup;
 
-    pbPlain = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbCipher ? cbCipher : 1);
-    if (!pbPlain)
+    pbPayload = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbCipher ? cbCipher : 1);
+    if (!pbPayload)
         goto cleanup;
-    CopyMemory(pbPlain, pbBlob + sizeof(WON_CRYPT_HEADER), cbCipher);
+    CopyMemory(pbPayload, pbBlob + sizeof(WON_CRYPT_HEADER), cbCipher);
 
     {
         // Final=FALSE to match the encrypt side: our padding is manual, so
         // CryptDecrypt must not try to auto-strip PKCS5 padding itself. The
         // manual PKCS7 validation below handles that instead.
         DWORD cbData = cbCipher;
-        if (!CryptDecrypt(hKey, 0, FALSE, 0, pbPlain, &cbData))
+        if (!CryptDecrypt(hKey, 0, FALSE, 0, pbPayload, &cbData))
             goto cleanup;
 
         // PKCS#7 padding check
         if (cbData < 1 || cbData > cbCipher)
             goto cleanup;
         {
-            BYTE pad = pbPlain[cbData - 1];
+            BYTE pad = pbPayload[cbData - 1];
             if (pad < 1 || pad > 16 || (DWORD)pad > cbData)
                 goto cleanup;
             DWORD i;
             for (i = 0; i < pad; ++i) {
-                if (pbPlain[cbData - 1 - i] != pad)
+                if (pbPayload[cbData - 1 - i] != pad)
                     goto cleanup;
             }
-            if (cbData - pad != cbPlain)
+            if (cbData - pad != cbPayload)
                 goto cleanup;
         }
     }
 
-    TrackAllocatedBuffer(pbPlain);
-    *ppbPlain = pbPlain;
-    *pcbPlain = cbPlain;
-    pbPlain = NULL;
+    if (bCompressed) {
+        // MAC is verified at this point, so pHeader->cbOriginal is
+        // trustworthy; a tampered value would already have failed above.
+        // Still sanity-check it: a genuine compressed blob always expands
+        // on decompression (CompressBufferLznt1 only kept results smaller
+        // than the original), so cbOriginal <= cbPayload is impossible for
+        // legitimate data.
+        DWORD cbOriginal = pHeader->cbOriginal;
+        if (cbOriginal == 0 || cbOriginal <= cbPayload)
+            goto cleanup;
+        if (!DecompressBufferLznt1(pbPayload, cbPayload, cbOriginal, &pbFinal))
+            goto cleanup;
+
+        TrackAllocatedBuffer(pbFinal);
+        *ppbPlain = pbFinal;
+        *pcbPlain = cbOriginal;
+        pbFinal = NULL;
+    } else {
+        TrackAllocatedBuffer(pbPayload);
+        *ppbPlain = pbPayload;
+        *pcbPlain = cbPayload;
+        pbPayload = NULL;
+    }
     bResult = TRUE;
 
 cleanup:
-    if (pbPlain)
-        HeapFree(GetProcessHeap(), 0, pbPlain);
+    if (pbPayload)
+        HeapFree(GetProcessHeap(), 0, pbPayload);
+    if (pbFinal)
+        HeapFree(GetProcessHeap(), 0, pbFinal);
     if (hKey)
         CryptDestroyKey(hKey);
     if (hProv)

@@ -417,6 +417,74 @@ static BOOL WonRealUpdateResource(PWON_UPDATE_DATA pUpdate)
         }
     }
 
+    // 既存の .rsrc が無く新規セクションを追加する場合、セクションテーブルに
+    // もう1エントリ分の空きが SizeOfHeaders 内に無いと、後段の「新規追加」
+    // 処理 (下記) が失敗してしまう。多くの PE は SizeOfHeaders が
+    // FileAlignment 単位に切り上げられているためテーブル末尾に十分な余白が
+    // あるが、ヘッダ領域が切り詰められた PE ではこの余白が無いことがある。
+    // その場合はここでヘッダ領域自体を広げる：
+    //   1. SizeOfHeaders を「既存セクション数+1」分のテーブルが収まる
+    //      FileAlignment 境界まで切り上げる。
+    //   2. ヘッダはメモリ上でも RVA 0 から SizeOfHeaders バイトマップされる
+    //      ため、既存セクションの VA を侵さない範囲でしか広げられない。
+    //   3. 広げた分だけ、ヘッダより後ろの全バイト（既存セクションの実データ）
+    //      をファイル上で後方にずらし、各セクションの PointerToRawData を
+    //      その分だけ加算する。
+    // 以降の処理はすべて pOldFile / pSections から再計算するので、ここで
+    // pOldFile 自体を作り直しておけば、下の「新規セクション追加」の空き
+    // チェックは自然に通るようになる。
+    if (iOldRsrc < 0) {
+        DWORD cbHeadersOld = b64 ? ((PIMAGE_NT_HEADERS64)pNt)->OptionalHeader.SizeOfHeaders
+                                 : ((PIMAGE_NT_HEADERS32)pNt)->OptionalHeader.SizeOfHeaders;
+        PBYTE pSecEndOld = (PBYTE)&pSections[nSections + 1]; // +1 = 追加予定の新規セクション分
+        DWORD cbSecEndOld = (DWORD)(pSecEndOld - pOldFile);
+
+        if (cbSecEndOld > cbHeadersOld) {
+            DWORD cbHeadersNew = ALIGN_UP(cbSecEndOld, fileAlign);
+
+            DWORD minSectionVA = MAXDWORD;
+            for (WORD i = 0; i < nSections; i++)
+                if (pSections[i].VirtualAddress < minSectionVA)
+                    minSectionVA = pSections[i].VirtualAddress;
+            if (nSections == 0 || minSectionVA == MAXDWORD)
+                minSectionVA = secAlign;
+
+            // 既存セクションの VA と重ならない範囲でしか広げられない。
+            // （通常は secAlign が 0x1000 前後あり、ヘッダはそのごく一部
+            //  しか使わないため、まず問題にならない。）
+            if (cbHeadersNew > minSectionVA)
+                goto cleanup;
+
+            DWORD delta = cbHeadersNew - cbHeadersOld;
+            DWORD cbExpanded = cbOldFile + delta;
+
+            PBYTE pExpanded = (PBYTE)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, cbExpanded);
+            if (!pExpanded)
+                goto cleanup;
+
+            memcpy(pExpanded, pOldFile, cbHeadersOld);
+            memcpy(pExpanded + cbHeadersNew, pOldFile + cbHeadersOld, cbOldFile - cbHeadersOld);
+
+            HeapFree(GetProcessHeap(), 0, pOldFile);
+            pOldFile = pExpanded;
+            cbOldFile = cbExpanded;
+
+            // pOldFile が差し替わったのでポインタを再取得
+            pDos = (PIMAGE_DOS_HEADER)pOldFile;
+            pNt = (PIMAGE_NT_HEADERS)(pOldFile + pDos->e_lfanew);
+            if (b64) {
+                pSections = IMAGE_FIRST_SECTION((PIMAGE_NT_HEADERS64)pNt);
+                ((PIMAGE_NT_HEADERS64)pNt)->OptionalHeader.SizeOfHeaders = cbHeadersNew;
+            } else {
+                pSections = IMAGE_FIRST_SECTION((PIMAGE_NT_HEADERS32)pNt);
+                ((PIMAGE_NT_HEADERS32)pNt)->OptionalHeader.SizeOfHeaders = cbHeadersNew;
+            }
+
+            for (WORD i = 0; i < nSections; i++)
+                pSections[i].PointerToRawData += delta;
+        }
+    }
+
     // 新セクションの VirtualAddress を計算
     // .rsrc の直前セクション（元VAが .rsrc より小さいもの）の末尾をベースにする。
     // これにより後続セクションとの間にギャップが生じないよう連続配置できる。
