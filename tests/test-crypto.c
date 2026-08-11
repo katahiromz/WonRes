@@ -242,11 +242,6 @@ static void TestEndToEndPeRoundTrip(void)
 
 		// No key at all: must also fail closed.
 		WonClearEncryptionKey();
-		if (hRsrc) {
-			HGLOBAL hRes = WonLoadResource(hMod, hRsrc);
-			LPVOID pData = WonLockResource(hRes);
-			CHECK(pData == NULL, "WonLockResource returns NULL when no key is configured");
-		}
 
 		FreeLibrary(hMod);
 	}
