@@ -207,7 +207,7 @@ DWORD WONAPI WonSizeofResource(HMODULE hModule, HRSRC hrsrc)
     } else {
         pRawData = pBase + pData->OffsetToData;
     }
-    if (pRawData && WonCryptIsEncryptedBlob(pRawData, pData->Size))
+    if (pRawData && WonIsEncryptionKeySet() && WonCryptIsEncryptedBlob(pRawData, pData->Size))
         return WonCryptPeekPlainSize(pRawData, pData->Size);
 #endif
 
@@ -258,7 +258,7 @@ HGLOBAL WONAPI WonLoadResource(HMODULE hModule, HRSRC hrsrc)
     // buffer -- i.e. every successful encrypted-resource load primed the
     // caller to over-read the returned buffer. See WonSizeofResource below,
     // which now reports the matching plaintext size for encrypted blobs.
-    if (WonCryptIsEncryptedBlob(pRawData, pData->Size)) {
+    if (WonIsEncryptionKeySet() && WonCryptIsEncryptedBlob(pRawData, pData->Size)) {
         PBYTE pbPlain = NULL;
         DWORD cbPlain = 0;
         if (!WonCryptDecryptBuffer(pRawData, pData->Size, &pbPlain, &cbPlain)) {
