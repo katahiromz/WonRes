@@ -83,6 +83,7 @@
 #undef LoadStringW
 #undef LockResource
 #undef SizeofResource
+#undef UnlockResource
 #undef UpdateResource
 #undef UpdateResourceA
 #undef UpdateResourceW
@@ -163,6 +164,7 @@
 #define LoadStringW WonLoadStringW
 #define LockResource WonLockResource
 #define SizeofResource WonSizeofResource
+#define UnlockResource WonUnlockResource
 #define UpdateResource WonUpdateResource
 #define UpdateResourceA WonUpdateResourceA
 #define UpdateResourceW WonUpdateResourceW
