@@ -544,10 +544,12 @@ static BOOL CompressBufferLznt1(const BYTE *pbSrc, DWORD cbSrc, BYTE **ppbDst, D
     if (!hNtdll)
         return FALSE;
 
-    PFN_RtlGetCompressionWorkSpaceSize pfnWorkSpaceSize =
-        (PFN_RtlGetCompressionWorkSpaceSize)GetProcAddress(hNtdll, "RtlGetCompressionWorkSpaceSize");
-    PFN_RtlCompressBuffer pfnCompress =
-        (PFN_RtlCompressBuffer)GetProcAddress(hNtdll, "RtlCompressBuffer");
+    FARPROC fn0 = GetProcAddress(hNtdll, "RtlGetCompressionWorkSpaceSize");
+    FARPROC fn1 = GetProcAddress(hNtdll, "RtlCompressBuffer");
+    PFN_RtlGetCompressionWorkSpaceSize pfnWorkSpaceSize;
+    PFN_RtlCompressBuffer pfnCompress;
+    CopyMemory(&pfnWorkSpaceSize, &fn0, sizeof(fn0));
+    CopyMemory(&pfnCompress, &fn1, sizeof(fn1));
     if (!pfnWorkSpaceSize || !pfnCompress)
         return FALSE;
 
