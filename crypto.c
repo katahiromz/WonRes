@@ -602,10 +602,11 @@ static BOOL DecompressBufferLznt1(const BYTE *pbSrc, DWORD cbSrc, DWORD cbOrigin
     if (!hNtdll)
         return FALSE;
 
-    PFN_RtlDecompressBuffer pfnDecompress =
-        (PFN_RtlDecompressBuffer)GetProcAddress(hNtdll, "RtlDecompressBuffer");
-    if (!pfnDecompress)
+    FARPROC fn = GetProcAddress(hNtdll, "RtlDecompressBuffer");
+    if (!fn)
         return FALSE;
+    PFN_RtlDecompressBuffer pfnDecompress;
+    memcpy(&pfnDecompress, &fn, sizeof(fn));
 
     PBYTE pbDst = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbOriginal);
     if (!pbDst)
